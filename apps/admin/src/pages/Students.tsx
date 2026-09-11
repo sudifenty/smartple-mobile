@@ -54,9 +54,9 @@ export default function Students() {
         <input className="input mb-2" placeholder="Search by name…" value={q} onChange={e => setQ(e.target.value)} />
         <div className="max-h-[70vh] overflow-auto">
           {list.map(s => (
-            <button key={s.user_id} onClick={() => pick(s)}
+            <button key={s.user_id || s.display_name || 'row'} onClick={() => pick(s)}
               className={`w-full text-left px-3 py-2 rounded-lg text-sm ${sel?.user_id === s.user_id ? 'bg-indigo-50 font-bold' : 'hover:bg-slate-50'}`}>
-              {s.display_name || s.user_id.slice(0, 8)} <span className="text-slate-400">· {s.class || '?'}</span>
+              {s.display_name || (s.user_id ? s.user_id.slice(0, 8) : '(no name)')} <span className="text-slate-400">· {s.class || '?'}</span>
             </button>
           ))}
         </div>

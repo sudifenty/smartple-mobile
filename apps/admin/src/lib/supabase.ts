@@ -2,12 +2,12 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Set these before building, e.g. in apps/admin/.env.local consumed by your host,
 // or replace with your project values (the SAME Supabase project as the student app).
-// HARDCODED to the smart-ple project on purpose: the Vercel project has a
-// stale VITE_SUPABASE_URL env var pointing at the OLD paywall project, and
-// env vars would silently override the defaults. The publishable key is
-// public by design (it ships in every client; RLS policies are the gate).
-const URL = 'https://xvjdvnbufoixbowbkbcc.supabase.co';
-const KEY = 'sb_publishable_C3R2dpxfW82vE5ANyVnW4w_9lGCTDoE';
+// HARDCODED on purpose (env vars on Vercel previously overrode the defaults
+// and pointed the dashboard at the wrong project). ONE project now serves
+// both the old web app and the mobile apps. The publishable key is public
+// by design (it ships in every client; RLS policies are the gate).
+const URL = 'https://ftykmafgfyqvniacguyi.supabase.co';
+const KEY = 'sb_publishable_bmOSdzyRyFtaJhDbukpKbA_qiAqYafg';
 
 export const supabase: SupabaseClient = createClient(URL, KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
