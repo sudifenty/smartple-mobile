@@ -2,8 +2,10 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Set these before building, e.g. in apps/admin/.env.local consumed by your host,
 // or replace with your project values (the SAME Supabase project as the student app).
-const URL = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://YOUR-PROJECT.supabase.co';
-const KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'YOUR-ANON-KEY';
+// Defaults = smart-ple project. The publishable key is public by design
+// (it ships in every client; RLS policies are the protection).
+const URL = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://xvjdvnbufoixbowbkbcc.supabase.co';
+const KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'sb_publishable_C3R2dpxfW82vE5ANyVnW4w_9lGCTDoE';
 
 export const supabase: SupabaseClient = createClient(URL, KEY, {
   auth: { persistSession: true, autoRefreshToken: true }

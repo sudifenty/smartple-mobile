@@ -9,8 +9,9 @@ export default function Login() {
 
   const signIn = async () => {
     setBusy(true); setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { setError(error.message); setBusy(false); return; }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) { console.log('LOGIN ERROR', error); setError(error.message); setBusy(false); return; }
+    console.log('LOGIN SUCCESS', data);
     // role check happens in App on session change; non-admins land back here.
     window.location.reload();
   };
