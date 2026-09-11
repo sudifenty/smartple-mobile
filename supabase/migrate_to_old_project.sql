@@ -136,14 +136,14 @@ CREATE OR REPLACE FUNCTION public.handle_new_user_smartple()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
   INSERT INTO public.smartple_profiles
-    (id, user_id, display_name, full_name, class, role)
+    (id, user_id, display_name, full_name, class, role, is_paid)
   VALUES (
     NEW.id, NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email,'@',1)),
     NEW.raw_user_meta_data->>'full_name',
     COALESCE(NEW.raw_user_meta_data->>'class_level',
              NEW.raw_user_meta_data->>'class', 'P4'),
-    'student')
+    'student', false)
   ON CONFLICT DO NOTHING;
   RETURN NEW;
 END $$;
@@ -263,7 +263,7 @@ END $$;
 -- ---------- 7. BACKFILL: give every existing auth user (Modestus, Bolton,
 --               Lati, sudifenty34, ...) a mobile-app profile ----------
 INSERT INTO public.smartple_profiles
-  (id, user_id, display_name, full_name, class, role)
+  (id, user_id, display_name, full_name, class, role, is_paid)
 SELECT u.id, u.id,
        COALESCE(u.raw_user_meta_data->>'full_name', split_part(u.email,'@',1)),
        u.raw_user_meta_data->>'full_name',
@@ -271,7 +271,8 @@ SELECT u.id, u.id,
                 u.raw_user_meta_data->>'class', 'P4'),
        CASE WHEN EXISTS (SELECT 1 FROM public.profiles op
                          WHERE op.id = u.id AND op.role = 'admin')
-            THEN 'admin' ELSE 'student' END
+            THEN 'admin' ELSE 'student' END,
+       false
 FROM auth.users u
 WHERE NOT EXISTS (SELECT 1 FROM public.smartple_profiles sp WHERE sp.user_id = u.id)
   AND NOT EXISTS (SELECT 1 FROM public.smartple_profiles sp2 WHERE sp2.id = u.id);
