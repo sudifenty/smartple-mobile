@@ -4,7 +4,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { effectiveFilters, getRemote } from '../lib/remote';
-import { Question, PASS_MARK, TIER_NAMES, TIER_UNLOCK_KEY } from '../lib/types';
+import { PASS_MARK, TIER_NAMES, TIER_UNLOCK_KEY } from '../lib/types';
+import { fetchQuestionsFor, logEvent, SQ } from '../lib/data';
 import { setTopic } from '../lib/usage';
 
 /**
@@ -17,7 +18,7 @@ export default function Learn() {
   const router = useRouter();
   const [maxTier, setMaxTier] = useState(1);
   const [tier, setTier] = useState<number | null>(null);
-  const [qs, setQs] = useState<Question[]>([]);
+  const [qs, setQs] = useState<SQ[]>([]);
   const [idx, setIdx] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
@@ -27,6 +28,14 @@ export default function Learn() {
 
   const f = effectiveFilters(klass);
   const activeTier = getRemote().assignment?.forced_tier || tier;
+
+  // HARD GATE: tier ladder is practice — locked when both practice modes are off
+  useEffect(() => {
+    if (!f.allowPracticeAnswers && !f.allowPracticeNoAnswers) {
+      Alert.alert('Locked by your teacher 🔒', 'Practice is turned off right now. Read your notes first.');
+      router.back();
+    }
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -38,11 +47,9 @@ export default function Learn() {
   }, [klass, subject, topic]);
 
   const startTier = async (t: number) => {
-    let q = supabase.from('smartple_questions').select('*')
-      .eq('class', klass).eq('subject', subject).eq('topic', topic).eq('tier', t);
-    const { data } = await q;
-    if (!data?.length) return Alert.alert('Coming soon', 'No questions in this tier yet.');
-    setTier(t); setQs(data as Question[]); setIdx(0); setScore(0); setDone(false);
+    const rows = await fetchQuestionsFor({ klass, subject, topic, tier: t });
+    if (!rows.length) return Alert.alert('Coming soon', 'No questions in this tier yet.');
+    setTier(t); setQs(rows); setIdx(0); setScore(0); setDone(false);
     setPicked(null); setTyped(''); setStartedAt(Date.now());
     setTopic(`${topic} T${t}`);
   };
@@ -50,14 +57,10 @@ export default function Learn() {
   const total = qs.length;
   const needed = Math.ceil(total * PASS_MARK);
 
-  const logAttempt = (qq: Question, correct: boolean, given: string, seconds: number) => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) return;
-      supabase.from('smartple_attempts').insert({
-        user_id: data.user.id, subject, topic, subtopic: qq.subtopic, tier: qq.tier,
-        question_id: qq.id, given_answer: given, is_correct: correct, skipped: false,
-        time_spent_seconds: seconds
-      });
+  const logAttempt = (qq: SQ, correct: boolean, given: string, seconds: number) => {
+    logEvent({
+      questionId: qq.id, subject, topic, subtopic: qq.subtopic, tier: qq.tier,
+      correct, seconds
     });
   };
 
@@ -85,12 +88,7 @@ export default function Learn() {
 
   const skip = () => {
     const qq = qs[idx];
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) supabase.from('smartple_attempts').insert({
-        user_id: data.user.id, subject, topic, subtopic: qq.subtopic, tier: qq.tier,
-        question_id: qq.id, skipped: true, time_spent_seconds: 0
-      });
-    });
+    logEvent({ questionId: qq.id, subject, topic, subtopic: qq.subtopic, tier: qq.tier, skipped: true, seconds: 0 });
     if (idx + 1 < total) { setIdx(idx + 1); setPicked(null); setTyped(''); } else setDone(true);
   };
 

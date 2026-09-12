@@ -2,6 +2,7 @@ import { AppState, AppStateStatus, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from './supabase';
+import { touchLastSeen } from './data';
 
 /**
  * Lightweight offline usage tracking (<50KB, no images bundled).
@@ -28,13 +29,13 @@ async function queue(row: Row) {
 
 export async function syncUsage(userId: string | null) {
   if (!userId || !online) return;
-  const raw = await AsyncStorage.getItem(QUEUE_KEY);
-  if (!raw) return;
-  const q: Row[] = JSON.parse(raw);
-  if (!q.length) return;
-  const { error } = await supabase.from('smartple_usage')
-    .insert(q.map(r => ({ user_id: userId, ...r })));
-  if (!error) await AsyncStorage.removeItem(QUEUE_KEY); // cleared only after a clean sync
+  // smartple_usage was dropped in the DB restructure. Instead of queueing
+  // minutes forever, send a last_seen heartbeat (the teacher's Live Activity
+  // reads profiles.last_seen) and drop the stale queue.
+  try {
+    await touchLastSeen();
+    await AsyncStorage.removeItem(QUEUE_KEY);
+  } catch {}
 }
 
 export function setTopic(topic: string | null) { currentTopic = topic; }

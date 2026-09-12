@@ -42,8 +42,9 @@ export default function Controls() {
 
   const save = async () => {
     if (!a) return;
-    await supabase.from('smartple_assignments').upsert({ ...a, updated_at: new Date().toISOString() },
+    const { error } = await supabase.from('smartple_assignments').upsert({ ...a, updated_at: new Date().toISOString() },
       { onConflict: 'user_id' });
+    if (error) return alert(`Save FAILED — the student got nothing.\n\n${error.message}\n\nIf it says a column does not exist, the assignments table needs its columns restored (SQL from the assistant).`);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };

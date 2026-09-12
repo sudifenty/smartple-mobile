@@ -30,22 +30,10 @@ export default function ExamScreen() {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const [{ data: e }, { data: a }] = await Promise.all([
-        supabase.from('smartple_exams').select('*').eq('id', Number(exam_id)).maybeSingle(),
-        supabase.from('smartple_exam_assignments').select('*')
-          .eq('exam_id', Number(exam_id)).eq('user_id', user.id)
-          .order('created_at', { ascending: false }).limit(1).maybeSingle()
-      ]);
-      if (a?.status === 'completed') { router.replace('/'); return; }
-      setExam(e); setAssignment(a);
-      if (a) {
-        supabase.from('smartple_exam_assignments').update({ status: 'in_progress' }).eq('id', a.id);
-        setSecondsLeft((e?.duration_minutes || 45) * 60);
-      }
-    })();
+    // The exam tables were dropped in the DB restructure — exams are paused
+    // until they're restored. Send the student home instead of dead queries.
+    Alert.alert('Exams paused', 'The exam system is being upgraded by your teacher. Carry on with your practice!');
+    router.replace('/');
   }, [exam_id]);
 
   useEffect(() => {

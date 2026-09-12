@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-nati
 import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { refreshRemote, getRemote, effectiveFilters, fetchLatestNudge, dismissNudge } from '../lib/remote';
+import { fetchQuestionsFor } from '../lib/data';
 
 /**
  * Home. On every focus: re-fetch remote control + exam lock.
@@ -26,12 +27,12 @@ export default function Home() {
     force(x => x + 1);
 
     const f = effectiveFilters(p?.class);
-    let q = supabase.from('smartple_questions').select('topic, subject').eq('class', f.klass);
-    if (f.subject) q = q.eq('subject', f.subject);
-    if (f.topic) q = q.eq('topic', f.topic);
-    const { data } = await q;
+    const rows = await fetchQuestionsFor({ klass: f.klass, subject: f.subject, topic: f.topic });
     const uniq: Record<string, { topic: string; subject: string }> = {};
-    for (const row of data || []) uniq[`${row.subject}|${row.topic}`] = row as any;
+    for (const row of rows) {
+      if (!row.topic) continue;
+      uniq[`${row.subject}|${row.topic}`] = { topic: row.topic, subject: row.subject };
+    }
     setTopics(Object.values(uniq));
   }, []);
 
@@ -101,8 +102,8 @@ export default function Home() {
           <Text style={s.cardS}>{t.subject}</Text>
           <View style={s.cardBtns}>
             {f.allowNotes && <Pressable style={s.mini} onPress={() => go(t.topic, t.subject, 'notes')}><Text style={s.miniT}>📖 Notes</Text></Pressable>}
-            {f.allowPracticeAnswers && <Pressable style={s.mini} onPress={() => go(t.topic, t.subject, 'practice')}><Text style={s.miniT}>✏️ Practice</Text></Pressable>}
-            <Pressable style={[s.mini, s.miniGo]} onPress={() => go(t.topic, t.subject, 'learn')}><Text style={s.miniT}>🚀 Learn tiers</Text></Pressable>
+            {(f.allowPracticeAnswers || f.allowPracticeNoAnswers) && <Pressable style={s.mini} onPress={() => go(t.topic, t.subject, 'practice')}><Text style={s.miniT}>✏️ Practice</Text></Pressable>}
+            {(f.allowPracticeAnswers || f.allowPracticeNoAnswers) && <Pressable style={[s.mini, s.miniGo]} onPress={() => go(t.topic, t.subject, 'learn')}><Text style={s.miniT}>🚀 Learn tiers</Text></Pressable>}
           </View>
         </View>
       ))}

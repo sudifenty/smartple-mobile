@@ -4,9 +4,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { effectiveFilters, getRemote } from '../lib/remote';
+import { fetchQuestionsFor, logEvent, SQ } from '../lib/data';
 import { setTopic } from '../lib/usage';
 
-type Note = { id: number; subtopic: string; body: string; questions: { q: string; answer: string }[] };
+type Note = { subtopic: string; body: string; questions: { q: string; answer: string; id?: any }[] };
 
 const NOTES_CACHE = 'sp_notes_cache'; // only used topics are cached — app stays light
 
@@ -23,26 +24,36 @@ export default function Notes() {
   const router = useRouter();
   const f = effectiveFilters(klass);
   const [subs, setSubs] = useState<string[]>([]);
+  const [noteList, setNoteList] = useState<Note[]>([]);
   const [note, setNote] = useState<Note | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [typedAt, setTypedAt] = useState<Record<number, number>>({});
 
   useEffect(() => {
-    if (!f.allowNotes) { Alert.alert('Locked', 'Your teacher turned Notes off.'); router.back(); return; }
+    if (!f.allowNotes) { Alert.alert('Locked by your teacher 🔒', 'Notes are turned off right now — practice only.'); router.back(); return; }
     (async () => {
-      const { data } = await supabase.from('smartple_notes')
-        .select('*').eq('class', klass).eq('subject', subject).eq('topic', topic);
-      let rows = (data as Note[]) || [];
-      if (rows.length) {
-        // cache for offline re-reading
-        const cache = JSON.parse((await AsyncStorage.getItem(NOTES_CACHE)) || '{}');
-        cache[`${klass}|${subject}|${topic}`] = rows;
+      // notes are built from the questions bank (smartple_notes no longer exists):
+      // each subtopic becomes a lesson card; explanations become the body.
+      const key = `${klass}|${subject}|${topic}`;
+      const cache = JSON.parse((await AsyncStorage.getItem(NOTES_CACHE)) || '{}');
+      const qs = await fetchQuestionsFor({ klass, subject, topic });
+      let rows: Note[];
+      if (qs.length) {
+        const bySub: Record<string, SQ[]> = {};
+        for (const q of qs) (bySub[q.subtopic || q.topic] = bySub[q.subtopic || q.topic] || []).push(q);
+        rows = Object.entries(bySub).map(([sub, list]) => ({
+          subtopic: sub,
+          body: list.map(x => x.explain).filter(Boolean).join('\n\n') ||
+            `Work through these ${list.length} questions in your head first, then type your answer before revealing mine.`,
+          questions: list.map(x => ({ q: x.prompt, answer: x.answer, id: x.id }))
+        }));
+        cache[key] = rows;
         await AsyncStorage.setItem(NOTES_CACHE, JSON.stringify(cache));
       } else {
-        const cache = JSON.parse((await AsyncStorage.getItem(NOTES_CACHE)) || '{}');
-        rows = cache[`${klass}|${subject}|${topic}`] || [];
+        rows = cache[key] || [];
       }
+      setNoteList(rows);
       setSubs(rows.map(r => r.subtopic));
       if (rows[0]) open(rows[0]);
     })();
@@ -51,11 +62,8 @@ export default function Notes() {
   const open = (n: Note) => { setNote(n); setAnswers({}); setRevealed({}); setTypedAt({}); setTopic(`notes ${n.subtopic}`); };
 
   const log = (i: number, type: 'viewed_answer' | 'started_typing' | 'submitted') => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) supabase.from('smartple_note_events').insert({
-        user_id: data.user.id, subtopic: note!.subtopic, question_id: i, event_type: type
-      });
-    });
+    const qq = note?.questions[i];
+    logEvent({ type, subtopic: note?.subtopic ?? null, questionId: qq?.id ?? null, topic, subject });
   };
 
   const onType = (i: number, v: string) => {
@@ -93,9 +101,8 @@ export default function Notes() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
         {subs.map((sb, i) => (
           <Pressable key={sb} style={[s.chip, note?.subtopic === sb && s.chipOn]} onPress={() => {
-            supabase.from('smartple_notes').select('*')
-              .eq('class', klass).eq('subject', subject).eq('topic', topic).eq('subtopic', sb)
-              .maybeSingle().then(({ data }) => data && open(data as Note));
+            const n = noteList.find(x => x.subtopic === sb);
+            if (n) open(n);
           }}>
             <Text style={note?.subtopic === sb ? s.chipOnT : s.chipT}>{i + 1}. {sb}</Text>
           </Pressable>

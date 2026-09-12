@@ -3,38 +3,47 @@ import { View, Text, Pressable, StyleSheet, ScrollView, TextInput, Alert } from 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { effectiveFilters, getRemote } from '../lib/remote';
-import { Question } from '../lib/types';
+import { fetchQuestionsFor, logEvent, SQ } from '../lib/data';
 import { setTopic } from '../lib/usage';
 
 /**
  * Practice: two modes.
  *  - answers   : MCQ, 4 options, instant check
  *  - no-answers: empty text box, typing only (answers hidden until check)
- * Both respect the admin's allow_* toggles and forced_* filters.
+ * Both respect the admin's allow_* toggles and forced_* filters — enforced
+ * on mount (screen refuses to open when the teacher locked it) AND per mode.
  */
 export default function Practice() {
   const { topic, subject, klass } = useLocalSearchParams<{ topic: string; subject: string; klass: string }>();
   const router = useRouter();
   const f = effectiveFilters(klass);
   const [mode, setMode] = useState<'answers' | 'noanswers' | null>(null);
-  const [qs, setQs] = useState<Question[]>([]);
+  const [qs, setQs] = useState<SQ[]>([]);
   const [idx, setIdx] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
   const [checked, setChecked] = useState<null | boolean>(null);
   const [startedAt, setStartedAt] = useState(Date.now());
 
+  // HARD GATE: teacher locked both practice modes → straight back out
+  useEffect(() => {
+    if (!f.allowPracticeAnswers && !f.allowPracticeNoAnswers) {
+      Alert.alert('Locked by your teacher 🔒', 'Practice is turned off right now. Read your notes first — your teacher will reopen it.');
+      router.back();
+    }
+  }, []);
+
   const start = async (m: 'answers' | 'noanswers') => {
     if (m === 'answers' && !f.allowPracticeAnswers) return Alert.alert('Locked', 'Your teacher turned this mode off.');
     if (m === 'noanswers' && !f.allowPracticeNoAnswers) return Alert.alert('Locked', 'Your teacher turned this mode off.');
-    let q = supabase.from('smartple_questions').select('*')
-      .eq('class', klass).eq('subject', subject).eq('topic', topic)
-      .eq('kind', m === 'answers' ? 'mcq' : 'typed');
     const a = getRemote().assignment;
-    if (a?.forced_tier) q = q.eq('tier', a.forced_tier);
-    const { data } = await q;
-    if (!data?.length) return Alert.alert('Nothing here', 'No questions for this mode yet.');
-    setMode(m); setQs(data as Question[]); setIdx(0); setPicked(null); setTyped('');
+    const rows = await fetchQuestionsFor({
+      klass, subject, topic,
+      tier: a?.forced_tier ?? null,
+      kind: m === 'answers' ? 'mcq' : 'typed'
+    });
+    if (!rows.length) return Alert.alert('Nothing here', 'No questions for this mode yet.');
+    setMode(m); setQs(rows); setIdx(0); setPicked(null); setTyped('');
     setChecked(null); setStartedAt(Date.now());
     setTopic(`${topic} practice`);
   };
@@ -44,12 +53,9 @@ export default function Practice() {
     const given = (mode === 'answers' ? picked : typed) || '';
     const ok = qq.answer.split(',').map(x => x.trim().toLowerCase()).includes(given.trim().toLowerCase());
     setChecked(ok);
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) supabase.from('smartple_attempts').insert({
-        user_id: data.user.id, subject, topic, subtopic: qq.subtopic, tier: qq.tier,
-        question_id: qq.id, given_answer: given, is_correct: ok, skipped: false,
-        time_spent_seconds: Math.round((Date.now() - startedAt) / 1000)
-      });
+    logEvent({
+      questionId: qq.id, subject, topic, subtopic: qq.subtopic, tier: qq.tier,
+      correct: ok, seconds: Math.round((Date.now() - startedAt) / 1000)
     });
   };
 
