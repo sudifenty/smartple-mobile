@@ -24,12 +24,15 @@ export const getRemote = () => state;
 
 export async function refreshRemote(userId: string): Promise<RemoteState> {
   try {
-    // exam tables were dropped in the DB restructure → no exam lock for now
-    const { data: a } = await supabase.from('smartple_assignments')
-      .select('*').eq('user_id', userId).maybeSingle();
+    const [{ data: a }, { data: ea }] = await Promise.all([
+      supabase.from('smartple_assignments').select('*').eq('user_id', userId).maybeSingle(),
+      supabase.from('smartple_exam_assignments').select('*')
+        .eq('user_id', userId).in('status', ['locked', 'in_progress'])
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
+    ]);
     state = {
       assignment: (a as Assignment) || null,
-      lockedExam: null,
+      lockedExam: (ea as ExamAssignment) || null,
       fetchedAt: Date.now()
     };
     await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(state));

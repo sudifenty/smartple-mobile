@@ -30,6 +30,10 @@ export default function Practice() {
     if (!f.allowPracticeAnswers && !f.allowPracticeNoAnswers) {
       Alert.alert('Locked by your teacher 🔒', 'Practice is turned off right now. Read your notes first — your teacher will reopen it.');
       router.back();
+    } else if (f.allowPracticeAnswers && !f.allowPracticeNoAnswers) {
+      start('answers');   // only one mode allowed → skip the picker
+    } else if (!f.allowPracticeAnswers && f.allowPracticeNoAnswers) {
+      start('noanswers');
     }
   }, []);
 
@@ -69,16 +73,20 @@ export default function Practice() {
     <View style={s.center}>
       <Pressable style={s.back} onPress={() => router.back()}><Text style={s.backT}>← Back</Text></Pressable>
       <Text style={s.h}>{topic}</Text>
-      <Pressable style={[s.big, !f.allowPracticeAnswers && s.off]} disabled={!f.allowPracticeAnswers} onPress={() => start('answers')}>
-        <Text style={s.bigIco}>✏️</Text>
-        <Text style={s.bigT}>Practice WITH answers</Text>
-        <Text style={s.bigS}>4 choices, instant feedback</Text>
-      </Pressable>
-      <Pressable style={[s.big, !f.allowPracticeNoAnswers && s.off]} disabled={!f.allowPracticeNoAnswers} onPress={() => start('noanswers')}>
-        <Text style={s.bigIco}>🧠</Text>
-        <Text style={s.bigT}>Practice NO answers</Text>
-        <Text style={s.bigS}>Type the answer yourself</Text>
-      </Pressable>
+      {f.allowPracticeAnswers && (
+        <Pressable style={s.big} onPress={() => start('answers')}>
+          <Text style={s.bigIco}>✏️</Text>
+          <Text style={s.bigT}>Practice WITH answers</Text>
+          <Text style={s.bigS}>4 choices, instant feedback</Text>
+        </Pressable>
+      )}
+      {f.allowPracticeNoAnswers && (
+        <Pressable style={s.big} onPress={() => start('noanswers')}>
+          <Text style={s.bigIco}>🧠</Text>
+          <Text style={s.bigT}>Practice NO answers</Text>
+          <Text style={s.bigS}>Type the answer yourself</Text>
+        </Pressable>
+      )}
     </View>
   );
 

@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView, BackHandler, Alert } fro
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { refreshRemote } from '../../lib/remote';
+import { logEvent } from '../../lib/data';
 
 type ExamQ = { question_id: number; prompt: string; options: string[] | null; answer: string; tier: number };
 
@@ -30,10 +31,22 @@ export default function ExamScreen() {
   }, []);
 
   useEffect(() => {
-    // The exam tables were dropped in the DB restructure — exams are paused
-    // until they're restored. Send the student home instead of dead queries.
-    Alert.alert('Exams paused', 'The exam system is being upgraded by your teacher. Carry on with your practice!');
-    router.replace('/');
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const [{ data: e }, { data: a }] = await Promise.all([
+        supabase.from('smartple_exams').select('*').eq('id', Number(exam_id)).maybeSingle(),
+        supabase.from('smartple_exam_assignments').select('*')
+          .eq('exam_id', Number(exam_id)).eq('user_id', user.id)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      ]);
+      if (a?.status === 'completed') { router.replace('/'); return; }
+      setExam(e); setAssignment(a);
+      if (a) {
+        supabase.from('smartple_exam_assignments').update({ status: 'in_progress' }).eq('id', a.id);
+        setSecondsLeft((e?.duration_minutes || 45) * 60);
+      }
+    })();
   }, [exam_id]);
 
   useEffect(() => {
@@ -59,16 +72,16 @@ export default function ExamScreen() {
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from('smartple_exam_assignments')
       .update({ status: 'completed', score }).eq('id', assignment.id);
-    // log every answer for the admin dashboard
-    if (user) await supabase.from('smartple_attempts').insert(
-      qs.map((q, i) => ({
-        user_id: user.id, subject: exam.subject || 'Exam', topic: exam.title,
-        subtopic: null, tier: q.tier, question_id: q.question_id,
-        given_answer: picked[i] || null,
-        is_correct: (q.answer || '').split(',').map((a: string) => a.trim().toLowerCase()).includes((picked[i] || '').trim().toLowerCase()),
-        skipped: !picked[i], time_spent_seconds: null
-      }))
-    );
+    // log every answer for the admin dashboard (new schema: learning_events)
+    if (user) for (let i = 0; i < qs.length; i++) {
+      const qi = qs[i];
+      logEvent({
+        questionId: qi.question_id, subject: exam.subject || 'Exam', topic: exam.title,
+        tier: qi.tier,
+        correct: (qi.answer || '').split(',').map((a: string) => a.trim().toLowerCase()).includes((picked[i] || '').trim().toLowerCase()),
+        skipped: !picked[i]
+      });
+    }
     if (user) await refreshRemote(user.id);
     Alert.alert(auto ? '⏰ Time is up' : 'Exam submitted', `You scored ${score}%`, [
       { text: 'OK', onPress: () => router.replace('/') }
