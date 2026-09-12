@@ -27,8 +27,9 @@ export default function Controls() {
   const pick = async (s: Profile) => {
     setSel(s); setSaved(false);
     const { data } = await supabase.from('smartple_assignments').select('*')
-      .eq('user_id', s.user_id).maybeSingle();
-    setA(data ? { ...(data as Assignment), note: (data as Assignment).note ?? null } : EMPTY(s.user_id));
+      .eq('user_id', s.user_id).limit(1);
+    const row = ((data as Assignment[]) || [])[0];
+    setA(row ? { ...row, note: row.note ?? null } : EMPTY(s.user_id));
     refreshTopics(null);
   };
 

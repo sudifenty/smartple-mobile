@@ -25,14 +25,16 @@ export const getRemote = () => state;
 export async function refreshRemote(userId: string): Promise<RemoteState> {
   try {
     const [{ data: a }, { data: ea }] = await Promise.all([
-      supabase.from('smartple_assignments').select('*').eq('user_id', userId).maybeSingle(),
+      // .limit(1) instead of maybeSingle: duplicate rows would make maybeSingle
+      // error out and silently fall back to "everything allowed"
+      supabase.from('smartple_assignments').select('*').eq('user_id', userId).limit(1),
       supabase.from('smartple_exam_assignments').select('*')
         .eq('user_id', userId).in('status', ['locked', 'in_progress'])
-        .order('created_at', { ascending: false }).limit(1).maybeSingle()
+        .order('created_at', { ascending: false }).limit(1)
     ]);
     state = {
-      assignment: (a as Assignment) || null,
-      lockedExam: (ea as ExamAssignment) || null,
+      assignment: ((a as Assignment[]) || [])[0] || null,
+      lockedExam: ((ea as ExamAssignment[]) || [])[0] || null,
       fetchedAt: Date.now()
     };
     await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(state));
