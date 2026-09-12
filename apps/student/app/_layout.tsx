@@ -2,9 +2,15 @@ import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { Alert, View, Text, Pressable } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { refreshRemote, getRemote, markNudgeSeen } from '../lib/remote';
+import { refreshRemote, fetchLatestNudge, dismissNudge, wasShown, Nudge } from '../lib/remote';
 import { startUsageTracking } from '../lib/usage';
 import type { Session } from '@supabase/supabase-js';
+
+function alertNudge(n: Nudge) {
+  Alert.alert('Message from Teacher 👨‍🏫', n.message, [
+    { text: 'Thanks!', onPress: () => dismissNudge(n.id) }
+  ], { cancelable: false });
+}
 
 export default function Layout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -33,13 +39,29 @@ export default function Layout() {
       const r = await refreshRemote(session.user.id);
       if (r.lockedExam && !inExam) router.replace(`/exam/${r.lockedExam.exam_id}`);
       if (!r.lockedExam && inExam) router.replace('/');
-      if (r.nudge) {
-        Alert.alert('💬 From your teacher', r.nudge.message, [
-          { text: 'Thank you!', onPress: () => markNudgeSeen(r.nudge!.id) }
-        ]);
-      }
+      const n = await fetchLatestNudge(session.user);
+      if (n && !wasShown(n.id)) alertNudge(n);
     })();
   }, [ready, session, segments]);
+
+  // REALTIME: admin sends a nudge while the student is online → pops instantly.
+  useEffect(() => {
+    if (!session?.user) return;
+    const uid = session.user.id;
+    const handle = (row: any) => {
+      if (!row || wasShown(String(row.id))) return;
+      alertNudge({ id: String(row.id), message: row.message });
+    };
+    const ch = supabase.channel(`nudges-${uid}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'smartple_nudges', filter: `user_id=eq.${uid}` },
+        p => handle(p.new))
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'smartple_nudges', filter: `target_user_id=eq.${uid}` },
+        p => handle(p.new))
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [session]);
 
   if (!ready) return <View style={{ flex: 1, backgroundColor: '#FFF6E6' }} />;
 

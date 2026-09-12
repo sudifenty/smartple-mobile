@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { refreshRemote, getRemote, effectiveFilters } from '../lib/remote';
+import { refreshRemote, getRemote, effectiveFilters, fetchLatestNudge, dismissNudge } from '../lib/remote';
 
 /**
  * Home. On every focus: re-fetch remote control + exam lock.
@@ -44,11 +44,28 @@ export default function Home() {
   const go = (topic: string, subject: string, screen: string) =>
     router.push({ pathname: `/${screen}`, params: { topic, subject, klass: f.klass } } as any);
 
+  const checkMessages = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const n = await fetchLatestNudge(user);
+    if (n) {
+      Alert.alert('Message from Teacher 👨‍🏫', n.message, [
+        { text: 'Thanks!', onPress: () => dismissNudge(n.id) }
+      ], { cancelable: false });
+    } else {
+      Alert.alert('📬 No new messages', 'Nothing new from your teacher right now.');
+    }
+  };
+
   return (
     <ScrollView style={s.page} contentContainerStyle={{ padding: 16 }}>
       <Text style={s.hi}>Hello {profile?.display_name || 'learner'} 👋</Text>
       <Text style={s.sub}>Class {f.klass}{f.subject ? ` · ${f.subject}` : ''}{f.topic ? ` · ${f.topic}` : ''}</Text>
       {r.assignment?.note ? <Text style={s.note}>📝 {r.assignment.note}</Text> : null}
+
+      <Pressable style={s.msgBtn} onPress={checkMessages}>
+        <Text style={s.msgBtnT}>📬 Check Messages</Text>
+      </Pressable>
 
       <View style={s.modes}>
         <Pressable
@@ -99,6 +116,8 @@ const s = StyleSheet.create({
   hi: { fontSize: 24, fontWeight: '900', color: '#2D4159' },
   sub: { color: '#8A7F6A', marginBottom: 10 },
   note: { backgroundColor: '#FFF3D6', borderRadius: 12, padding: 10, color: '#7A5B00', marginBottom: 10, fontWeight: '600' },
+  msgBtn: { backgroundColor: '#E7F0FF', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 12, borderWidth: 1, borderColor: '#C9DCFF', alignItems: 'center' },
+  msgBtnT: { fontWeight: '800', color: '#1D4ED8', fontSize: 14 },
   modes: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   mode: { flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#EFE6D2' },
   modeOff: { opacity: 0.45 },
