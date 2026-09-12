@@ -102,7 +102,7 @@ export default function Exams() {
             {assigns.map(a => (
               <tr key={a.id}>
                 <td className="td">{exams.find(e => e.id === a.exam_id)?.title || a.exam_id}</td>
-                <td className="td">{students.find(s => s.user_id === a.user_id)?.display_name || a.user_id.slice(0, 6)}</td>
+                <td className="td">{students.find(s => s.user_id === a.user_id)?.display_name || (a.user_id ? a.user_id.slice(0, 6) : '(unknown)')}</td>
                 <td className="td"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${a.status === 'completed' ? 'bg-green-100 text-green-700' : a.status === 'locked' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{a.status}</span></td>
                 <td className="td">{a.score != null ? `${a.score}%` : '—'}</td>
                 <td className="td text-right whitespace-nowrap">

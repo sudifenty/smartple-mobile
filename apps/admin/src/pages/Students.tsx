@@ -13,7 +13,7 @@ export default function Students() {
 
   useEffect(() => {
     supabase.from('smartple_profiles').select('*').eq('role', 'student')
-      .then(({ data }) => setStudents((data as Profile[]) || []));
+      .then(({ data }) => setStudents(((data as Profile[]) || []).filter(s => !!s.user_id)));
   }, []);
 
   const list = students.filter(s =>

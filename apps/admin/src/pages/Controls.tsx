@@ -20,7 +20,7 @@ export default function Controls() {
 
   useEffect(() => {
     supabase.from('smartple_profiles').select('*').eq('role', 'student')
-      .then(({ data }) => setStudents((data as Profile[]) || []));
+      .then(({ data }) => setStudents(((data as Profile[]) || []).filter(s => !!s.user_id)));
   }, []);
 
   const pick = async (s: Profile) => {
@@ -64,7 +64,7 @@ export default function Controls() {
         {list.map(s => (
           <button key={s.user_id} onClick={() => pick(s)}
             className={`w-full text-left px-3 py-2 rounded-lg text-sm ${sel?.user_id === s.user_id ? 'bg-indigo-50 font-bold' : 'hover:bg-slate-50'}`}>
-            {s.display_name || s.user_id.slice(0, 8)} <span className="text-slate-400">· {s.class || '?'}</span>
+            {s.display_name || (s.user_id ? s.user_id.slice(0, 8) : '(no name)')} <span className="text-slate-400">· {s.class || '?'}</span>
           </button>
         ))}
       </div>
