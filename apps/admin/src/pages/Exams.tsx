@@ -1,155 +1,268 @@
 import { useEffect, useState } from 'react';
 import { supabase, Profile } from '../lib/supabase';
-import { fetchQuestions, Q } from '../lib/events';
 
-/**
- * Exams — build an exam from the questions bank, then LOCK it onto a student:
- * their app opens straight into the exam (no back, no close) until they submit
- * or time runs out. Requires the exam tables (SQL from the assistant).
- */
+/* ------------------------------------------------------------------
+   Exams — build one, lock it onto students, read the results.
+
+   Live tables (nothing to install, no extra SQL):
+     smartple_exams              id, title, subject, duration_minutes, questions (jsonb)
+     smartple_exam_assignments   id, exam_id, user_id, status, score
+   The database constrains status to: locked | in_progress | completed.
+
+   A student's phone polls every 15 seconds, so the exam appears — and the
+   app locks around it — within seconds of pressing ASSIGN & LOCK.
+------------------------------------------------------------------ */
+
+type Draft = { q: string; options: string[]; answer: string; kind: 'mcq' | 'short'; marks: number };
+type Exam = { id: number; title: string; subject: string | null; duration_minutes: number | null; questions: any; created_at: string };
+type Asg = { id: number; exam_id: number; user_id: string; status: string; score: number | null; created_at: string };
+type Sub = { id: string; user_id: string; details: any; created_at: string };
+
+const mcq = (): Draft => ({ q: '', options: ['', '', '', ''], answer: 'A', kind: 'mcq', marks: 1 });
+const written = (): Draft => ({ q: '', options: [], answer: '', kind: 'short', marks: 2 });
+const qsOf = (e: Exam | null): Draft[] => (e && Array.isArray(e.questions) ? e.questions : []);
+const letters = ['A', 'B', 'C', 'D'];
+
 export default function Exams() {
+  const [tab, setTab] = useState<'create' | 'assign' | 'results'>('create');
   const [students, setStudents] = useState<Profile[]>([]);
-  const [exams, setExams] = useState<any[]>([]);
-  const [assigns, setAssigns] = useState<any[]>([]);
-  const [dbError, setDbError] = useState<string | null>(null);
-  const [qs, setQs] = useState<Q[]>([]);
-  const [fClass, setFClass] = useState('P6');
-  const [fSubject, setFSubject] = useState('');
-  const [fTopic, setFTopic] = useState('');
-  const [picked, setPicked] = useState<Set<any>>(new Set());
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [asgs, setAsgs] = useState<Asg[]>([]);
+  const [subs, setSubs] = useState<Sub[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  // create form
   const [title, setTitle] = useState('');
-  const [duration, setDuration] = useState(45);
+  const [subject, setSubject] = useState('SST');
+  const [duration, setDuration] = useState(10);
+  const [qs, setQs] = useState<Draft[]>([mcq()]);
+
+  // assign form
+  const [examId, setExamId] = useState<number | null>(null);
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [open, setOpen] = useState<number | null>(null);
+
+  const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(null), 3500); };
 
   const reload = async () => {
-    const [{ data: s }, { data: e, error: ee }, { data: a }, bank] = await Promise.all([
-      supabase.from('smartple_profiles').select('*').eq('role', 'student'),
-      supabase.from('smartple_exams').select('*').order('created_at', { ascending: false }),
-      supabase.from('smartple_exam_assignments').select('*').order('created_at', { ascending: false }).limit(50),
-      fetchQuestions()
+    const [{ data: s }, { data: e, error: ee }, { data: a }, { data: sub }] = await Promise.all([
+      supabase.from('smartple_profiles').select('*'),
+      supabase.from('smartple_exams').select('*').order('id', { ascending: false }),
+      supabase.from('smartple_exam_assignments').select('*').order('created_at', { ascending: false }).limit(200),
+      supabase.from('learning_events').select('*').eq('event_type', 'exam_submitted')
+        .order('created_at', { ascending: false }).limit(200)
     ]);
-    setDbError(ee ? String(ee.message) : null);
-    setStudents(((s as Profile[]) || []).filter(x => !!x.user_id));
-    setExams((e as any[]) || []);
-    setAssigns((a as any[]) || []);
-    setQs(bank);
+    setErr(ee ? String(ee.message) : null);
+    setStudents((s || []) as Profile[]);
+    setExams((e || []) as Exam[]);
+    setAsgs((a || []) as Asg[]);
+    setSubs((sub || []) as Sub[]);
+    if (!examId && e && e.length) setExamId((e[0] as Exam).id);
   };
   useEffect(() => { reload(); }, []);
 
-  const filtered = qs.filter(q =>
-    (!q.klass || q.klass === fClass) &&
-    (!fSubject || q.subject === fSubject) &&
-    (!fTopic || (q.topic || '').toLowerCase().includes(fTopic.toLowerCase())));
-  const subjects = Array.from(new Set(qs.map(q => q.subject).filter(Boolean))) as string[];
+  const name = (uid: string) => {
+    const p = students.find(x => x.user_id === uid);
+    return p?.display_name || (uid ? uid.slice(0, 8) : '?');
+  };
+  const examTitle = (id: number) => exams.find(e => e.id === id)?.title || `exam ${id}`;
+  const totalMarks = qs.reduce((a, q) => a + (Number(q.marks) || 0), 0);
+  const setQ = (i: number, patch: Partial<Draft>) =>
+    setQs(prev => prev.map((q, j) => j === i ? { ...q, ...patch } : q));
 
-  const toggle = (id: any) => setPicked(prev => {
-    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
-  });
-
-  const createAndLock = async () => {
-    if (!title.trim() || picked.size === 0) return alert('Give the exam a title and tick questions.');
-    const studentId = (document.getElementById('lockStudent') as HTMLSelectElement)?.value;
-    if (!studentId) return alert('Pick the student to lock.');
-    const chosen = filtered.filter(q => picked.has(q.id));
-    const payloadQs = chosen.map(q => ({
-      question_id: q.id, prompt: q.prompt, options: q.options, answer: q.answer, tier: q.tier
-    }));
-    const { data: exam, error } = await supabase.from('smartple_exams')
-      .insert({ title, subject: chosen[0]?.subject || null, questions: payloadQs, duration_minutes: duration })
-      .select().single();
-    if (error) return alert('Create failed: ' + error.message +
-      '\n\nIf it says the table does not exist, run the exam-tables SQL in the SQL Editor first.');
-    const { error: e2 } = await supabase.from('smartple_exam_assignments')
-      .insert({ exam_id: exam.id, user_id: studentId, status: 'locked',
-                assigned_by: (await supabase.auth.getUser()).data.user?.id });
-    if (e2) return alert('Exam created, but locking the student failed: ' + e2.message);
-    setPicked(new Set()); setTitle('');
-    reload();
-    alert('Exam sent — the student app locks into it on next open.');
+  const saveExam = async () => {
+    if (!title.trim()) return alert('Give the exam a title.');
+    const clean = qs.filter(q => q.q.trim());
+    if (!clean.length) return alert('Add at least one question.');
+    const bad = clean.find(q => q.kind === 'mcq' && q.options.filter(o => o.trim()).length < 2);
+    if (bad) return alert('Every multiple-choice question needs at least two options.');
+    const payload = {
+      title: title.trim(), subject, duration_minutes: Number(duration) || 10,
+      questions: clean.map(q => q.kind === 'mcq'
+        ? { ...q, options: q.options.filter(o => o.trim()) }
+        : { q: q.q, options: [], answer: q.answer, kind: 'short', marks: Number(q.marks) || 1 })
+    };
+    const { data, error } = await supabase.from('smartple_exams').insert(payload)
+      .select('*');
+    if (error) return alert(`Save FAILED — nothing was stored.\n\n${error.message}`);
+    flash(`Saved "${title.trim()}" · ${clean.length} questions · ${totalMarks} marks`);
+    setTitle(''); setQs([mcq()]);
+    await reload();
+    if (data && data[0]) { setExamId(data[0].id); setTab('assign'); }
   };
 
-  const setStatus = async (id: number, status: string) => {
-    const { error } = await supabase.from('smartple_exam_assignments').update({ status }).eq('id', id);
-    if (error) return alert(error.message);
-    reload();
+  const assign = async () => {
+    if (!examId) return alert('Pick an exam.');
+    if (!chosen.size) return alert('Tick at least one student.');
+    const rows = [...chosen].map(user_id => ({ exam_id: examId, user_id, status: 'locked' }));
+    const { error } = await supabase.from('smartple_exam_assignments').insert(rows);
+    if (error) return alert(`Assign FAILED.\n\n${error.message}`);
+    flash(`Locked "${examTitle(examId)}" onto ${rows.length} student${rows.length > 1 ? 's' : ''} — it reaches their phone within 15 s.`);
+    setChosen(new Set());
+    await reload();
+    setTab('results');
   };
 
-  const nameOf = (uid: string) => students.find(s => s.user_id === uid)?.display_name || uid?.slice(0, 8) || '?';
-  const examTitle = (id: number) => exams.find(e => e.id === id)?.title || `#${id}`;
+  const release = async (a: Asg) => {
+    if (!confirm(`Release ${name(a.user_id)} from "${examTitle(a.exam_id)}"?`)) return;
+    const { error } = await supabase.from('smartple_exam_assignments').delete().eq('id', a.id);
+    if (error) return alert(`Release FAILED.\n\n${error.message}`);
+    flash('Released — the student is free again.');
+    await reload();
+  };
+
+  const badge = (s: string) => {
+    const c = s === 'completed' ? 'bg-green-100 text-green-700'
+      : s === 'in_progress' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+    return <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${c}`}>{s}</span>;
+  };
+
+  const Tab = ({ id, label }: { id: typeof tab; label: string }) => (
+    <button onClick={() => setTab(id)}
+      className={`px-4 py-2 rounded-xl text-sm font-bold ${tab === id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+      {label}
+    </button>
+  );
 
   return (
     <div className="space-y-4">
-      {dbError && (
-        <div className="card border-2 border-amber-300 bg-amber-50 text-sm">
-          <b className="text-amber-800">Exam tables not found yet:</b> {dbError}
-          <p className="text-amber-700 mt-1">Run the exam-tables SQL (from the assistant) in the SQL Editor, then refresh this page.</p>
+      <div className="flex gap-2 flex-wrap items-center">
+        <Tab id="create" label="1 · Create exam" />
+        <Tab id="assign" label="2 · Assign" />
+        <Tab id="results" label="3 · Results" />
+        <button onClick={reload} className="ml-auto text-sm text-slate-500 underline">refresh</button>
+      </div>
+      {msg && <div className="card bg-green-50 text-green-800 text-sm font-semibold">{msg}</div>}
+      {err && <div className="card bg-red-50 text-red-700 text-sm">{err}</div>}
+
+      {/* ---------------- CREATE ---------------- */}
+      {tab === 'create' && (
+        <div className="card space-y-3">
+          <div className="grid md:grid-cols-[2fr,1fr,1fr] gap-2">
+            <input className="input" placeholder="Exam title, e.g. P6 SST · East African Community · Test 1"
+              value={title} onChange={e => setTitle(e.target.value)} />
+            <select className="input" value={subject} onChange={e => setSubject(e.target.value)}>
+              {['SST', 'SCI', 'ENG', 'MATH'].map(s => <option key={s}>{s}</option>)}
+            </select>
+            <label className="input flex items-center gap-2">minutes
+              <input type="number" min={1} className="w-20 border rounded px-2 py-1"
+                value={duration} onChange={e => setDuration(Number(e.target.value))} />
+            </label>
+          </div>
+
+          {qs.map((q, i) => (
+            <div key={i} className="border rounded-xl p-3 space-y-2 bg-slate-50">
+              <div className="flex items-center gap-2">
+                <b className="text-sm">Q{i + 1}</b>
+                <button onClick={() => setQ(i, { kind: q.kind === 'mcq' ? 'short' : 'mcq', options: q.kind === 'mcq' ? ['', '', '', ''] : [] })}
+                  className="text-xs px-2 py-1 rounded bg-white border">
+                  {q.kind === 'mcq' ? 'multiple choice' : 'written answer'}
+                </button>
+                <label className="text-xs text-slate-500 ml-auto">marks
+                  <input type="number" min={1} className="w-14 ml-1 border rounded px-1"
+                    value={q.marks} onChange={e => setQ(i, { marks: Number(e.target.value) })} />
+                </label>
+                <button onClick={() => setQs(p => p.filter((_, j) => j !== i))} className="text-xs text-red-500">delete</button>
+              </div>
+              <input className="input" placeholder="The question…" value={q.q} onChange={e => setQ(i, { q: e.target.value })} />
+              {q.kind === 'mcq'
+                ? q.options.map((o, k) => (
+                  <div key={k} className="flex items-center gap-2">
+                    <input type="radio" name={`c${i}`} checked={q.answer === letters[k]}
+                      onChange={() => setQ(i, { answer: letters[k] })} />
+                    <span className="text-xs w-4">{letters[k]}</span>
+                    <input className="input" placeholder={`Option ${letters[k]}`} value={o}
+                      onChange={e => setQ(i, { options: q.options.map((x, j) => j === k ? e.target.value : x) })} />
+                  </div>
+                ))
+                : <input className="input" placeholder="Model answer (for your marking — the student never sees it)"
+                    value={q.answer} onChange={e => setQ(i, { answer: e.target.value })} />}
+            </div>
+          ))}
+
+          <div className="flex gap-2 flex-wrap items-center">
+            <button onClick={() => setQs(p => [...p, mcq()])} className="btn-soft text-sm px-3 py-2 rounded-lg bg-slate-100">+ multiple choice</button>
+            <button onClick={() => setQs(p => [...p, written()])} className="btn-soft text-sm px-3 py-2 rounded-lg bg-slate-100">+ written question</button>
+            <span className="text-sm text-slate-500">{qs.filter(q => q.q.trim()).length} questions · {totalMarks} marks</span>
+            <button onClick={saveExam}
+              className="ml-auto px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold">Save exam</button>
+          </div>
+          <p className="text-xs text-slate-400">Multiple choice is marked automatically on the phone. Written answers are sent to you for marking.</p>
         </div>
       )}
 
-      <div className="card">
-        <h2 className="font-black mb-2">Create Exam & Lock Student</h2>
-        <div className="flex flex-wrap gap-2 mb-2">
-          <input className="input max-w-[160px]" value={title} onChange={e => setTitle(e.target.value)} placeholder="Exam title" />
-          <input className="input max-w-[90px]" type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} title="minutes" />
-          <select className="input max-w-[100px]" value={fClass} onChange={e => setFClass(e.target.value)}>
-            {['P4', 'P5', 'P6', 'P7'].map(c => <option key={c}>{c}</option>)}
-          </select>
-          <select className="input max-w-[130px]" value={fSubject} onChange={e => setFSubject(e.target.value)}>
-            <option value="">All subjects</option>
-            {subjects.map(s => <option key={s}>{s}</option>)}
-          </select>
-          <input className="input max-w-[150px]" placeholder="Search topic…" value={fTopic} onChange={e => setFTopic(e.target.value)} />
-        </div>
-        <div className="max-h-64 overflow-auto border border-slate-200 rounded-xl mb-2">
-          <table className="w-full">
-            <thead><tr><th className="th">✓</th><th className="th">Topic</th><th className="th">Tier</th><th className="th">Question</th></tr></thead>
-            <tbody>
-              {filtered.slice(0, 100).map((q, i) => (
-                <tr key={i} className={picked.has(q.id) ? 'bg-indigo-50' : ''}>
-                  <td className="td"><input type="checkbox" checked={picked.has(q.id)} onChange={() => toggle(q.id)} /></td>
-                  <td className="td">{q.topic || '?'}</td>
-                  <td className="td">{q.tier ? `T${q.tier}` : '-'}</td>
-                  <td className="td text-sm">{q.prompt.slice(0, 70)}{q.prompt.length > 70 ? '…' : ''}</td>
-                </tr>
-              ))}
-              {!filtered.length && <tr><td className="td text-slate-400" colSpan={4}>No questions for this filter — the bank may be empty.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-bold">{picked.size} question{picked.size === 1 ? '' : 's'} picked</span>
-          <select id="lockStudent" className="input max-w-xs">
-            <option value="">Lock to student…</option>
-            {students.map(s => <option key={s.user_id} value={s.user_id}>{s.display_name} · {s.class || '?'}</option>)}
-          </select>
-          <button className="btn-p" onClick={createAndLock}>🔒 Create & Lock</button>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="font-black mb-2">Sent exams</h2>
-        <table className="w-full">
-          <thead><tr><th className="th">Exam</th><th className="th">Student</th><th className="th">Status</th><th className="th">Score</th><th className="th">Controls</th></tr></thead>
-          <tbody>
-            {assigns.map(a => (
-              <tr key={a.id}>
-                <td className="td">{examTitle(a.exam_id)}</td>
-                <td className="td">{nameOf(a.user_id)}</td>
-                <td className="td">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${a.status === 'completed' ? 'bg-green-100 text-green-700' : a.status === 'in_progress' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                    {a.status}
-                  </span>
-                </td>
-                <td className="td font-bold">{a.score != null ? `${a.score}%` : '—'}</td>
-                <td className="td text-right whitespace-nowrap">
-                  {a.status !== 'locked' && <button className="text-xs underline mr-2" onClick={() => setStatus(a.id, 'locked')}>Re-lock</button>}
-                  {a.status !== 'completed' && <button className="text-xs underline" onClick={() => setStatus(a.id, 'completed')}>Release</button>}
-                </td>
-              </tr>
+      {/* ---------------- ASSIGN ---------------- */}
+      {tab === 'assign' && (
+        <div className="grid md:grid-cols-[1fr,320px] gap-4">
+          <div className="card space-y-2">
+            <b className="text-sm">Tick the students who must sit this exam</b>
+            {students.map(s => (
+              <label key={s.user_id} className="flex items-center gap-2 text-sm py-1">
+                <input type="checkbox" checked={chosen.has(s.user_id)}
+                  onChange={() => setChosen(prev => {
+                    const n = new Set(prev);
+                    n.has(s.user_id) ? n.delete(s.user_id) : n.add(s.user_id);
+                    return n;
+                  })} />
+                {s.display_name || s.user_id.slice(0, 8)} <span className="text-slate-400">· {s.class || '?'}</span>
+              </label>
             ))}
-            {!assigns.length && <tr><td className="td text-slate-400" colSpan={5}>No exams sent yet.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+            {!students.length && <p className="text-sm text-slate-400">No students found.</p>}
+          </div>
+          <div className="card space-y-3">
+            <b className="text-sm">The exam</b>
+            <select className="input" value={examId ?? ''} onChange={e => setExamId(Number(e.target.value))}>
+              {exams.map(e => <option key={e.id} value={e.id}>{e.title} ({qsOf(e).length} q)</option>)}
+            </select>
+            <button onClick={assign}
+              className="w-full px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-bold">
+              Assign &amp; lock ({chosen.size})
+            </button>
+            <p className="text-xs text-slate-400">Their app opens straight into the exam — no back, no home — until they submit or the time runs out.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- RESULTS ---------------- */}
+      {tab === 'results' && (
+        <div className="card space-y-2">
+          {asgs.map(a => {
+            const sub = subs.find(s => s.user_id === a.user_id && Number(s.details?.exam_id) === Number(a.exam_id));
+            const answers: any[] = sub?.details?.answers || [];
+            return (
+              <div key={a.id} className="border rounded-xl p-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <b className="text-sm">{name(a.user_id)}</b>
+                  <span className="text-slate-500 text-sm">{examTitle(a.exam_id)}</span>
+                  {badge(a.status)}
+                  {a.score != null && <span className="text-sm font-bold text-green-700">{a.score}%</span>}
+                  {a.status !== 'completed' &&
+                    <button onClick={() => release(a)} className="ml-auto text-xs text-red-500 underline">release</button>}
+                  {answers.length > 0 &&
+                    <button onClick={() => setOpen(open === a.id ? null : a.id)}
+                      className="text-xs text-indigo-600 underline">{open === a.id ? 'hide answers' : 'review answers'}</button>}
+                </div>
+                {open === a.id && (
+                  <div className="mt-2 space-y-2">
+                    {answers.map((d: any, i: number) => (
+                      <div key={i} className="text-sm bg-slate-50 rounded-lg p-2">
+                        <b>Q{i + 1}. {d.q}</b>
+                        <div>Answer given: <b>{d.given || '—'}</b></div>
+                        {d.ok === null
+                          ? <div className="text-amber-700">needs your marking · model answer: {d.answer}</div>
+                          : <div className={d.ok ? 'text-green-700' : 'text-red-600'}>
+                              {d.ok ? 'correct' : 'not correct'} · correct answer: {d.answer}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {!asgs.length && <p className="text-sm text-slate-400">Nothing assigned yet.</p>}
+        </div>
+      )}
     </div>
   );
 }
