@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase, Profile } from '../lib/supabase';
+import StudentView from './StudentView';
 
 type Row = { subject: string; topic: string; subtopic: string | null; avg_score: number; n: number };
 type Skip = { topic: string; tier: number | null; n: number };
@@ -10,6 +11,7 @@ export default function Students() {
   const [sel, setSel] = useState<Profile | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [skips, setSkips] = useState<Skip[]>([]);
+  const [view, setView] = useState<'progress' | 'student'>('progress');
 
   useEffect(() => {
     supabase.from('smartple_profiles').select('*').eq('role', 'student')
@@ -21,6 +23,7 @@ export default function Students() {
 
   const pick = async (s: Profile) => {
     setSel(s);
+    setView('progress');
     // weakest subtopics first (heatmap source)
     const { data: attempts } = await supabase.from('smartple_attempts')
       .select('subject, topic, subtopic, is_correct, skipped, tier')
@@ -68,7 +71,13 @@ export default function Students() {
             <div className="card mb-3">
               <h2 className="font-black">{sel.display_name} <span className="text-slate-400 font-normal">· {sel.class}</span></h2>
               <p className="text-xs text-slate-400">{sel.user_id}</p>
+              <div className="flex gap-2 mt-2">
+                <button className={view === 'progress' ? 'btn-p' : 'btn-s'} onClick={() => setView('progress')}>📊 Progress</button>
+                <button className={view === 'student' ? 'btn-p' : 'btn-s'} onClick={() => setView('student')}>👁 Student View</button>
+              </div>
             </div>
+            {view === 'student' && <StudentView student={sel} />}
+            {view === 'progress' && <>
             <div className="card mb-3">
               <h3 className="font-bold mb-2">Weakest subtopics (worst first)</h3>
               <table className="w-full">
@@ -97,6 +106,7 @@ export default function Students() {
                 </tbody>
               </table>
             </div>
+            </>}
           </>
         )}
       </div>

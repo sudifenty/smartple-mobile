@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase, Profile } from './lib/supabase';
 import Login from './pages/Login';
 import Students from './pages/Students';
+import Live from './pages/Live';
 import Controls from './pages/Controls';
 import Cheating from './pages/Cheating';
 import Usage from './pages/Usage';
@@ -11,6 +12,7 @@ import Parent from './pages/Parent';
 
 const NAV = [
   ['students', 'Students'],
+  ['live', 'Live Activity'],
   ['controls', 'Remote Control'],
   ['cheating', 'Cheating'],
   ['usage', 'Usage'],
@@ -107,6 +109,7 @@ export default function App() {
       </header>
       <main className="p-4 max-w-6xl mx-auto">
         {page === 'students' && <Students />}
+        {page === 'live' && <Live />}
         {page === 'controls' && <Controls />}
         {page === 'cheating' && <Cheating />}
         {page === 'usage' && <Usage />}
