@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { AppState, AppStateStatus } from 'react-native';
 import { Assignment, ExamAssignment } from './types';
 
 /**
@@ -22,6 +23,15 @@ let state: RemoteState = { assignment: null, lockedExam: null, fetchedAt: 0 };
 
 export const getRemote = () => state;
 
+/* Change notifications: screens subscribe and re-render ONLY when the
+   teacher's settings actually changed (no pointless re-renders each poll). */
+const listeners = new Set<() => void>();
+let lastSnapshot = '';
+export function subscribeRemote(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => { listeners.delete(cb); };
+}
+
 export async function refreshRemote(userId: string): Promise<RemoteState> {
   try {
     const [{ data: a }, { data: ea }] = await Promise.all([
@@ -32,18 +42,51 @@ export async function refreshRemote(userId: string): Promise<RemoteState> {
         .eq('user_id', userId).in('status', ['locked', 'in_progress'])
         .order('created_at', { ascending: false }).limit(1)
     ]);
+    // FRESH FIRST: live data always overwrites the cache. The cache is ONLY
+    // read in the offline fallback below — never shown ahead of fresh data.
     state = {
       assignment: ((a as Assignment[]) || [])[0] || null,
       lockedExam: ((ea as ExamAssignment[]) || [])[0] || null,
       fetchedAt: Date.now()
     };
     await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(state));
+    const snap = JSON.stringify([state.assignment, state.lockedExam]);
+    if (snap !== lastSnapshot) {
+      lastSnapshot = snap;
+      listeners.forEach(cb => { try { cb(); } catch {} });
+    }
   } catch {
     // offline → keep last known state (trust the cache)
     const cached = await AsyncStorage.getItem(CACHE_KEY);
     if (cached && !state.fetchedAt) state = JSON.parse(cached);
   }
   return state;
+}
+
+/* ------------------------------------------------------------------ */
+/* AUTO-SYNC: teacher changes reach the phone within 15 seconds.       */
+/* Triggers: immediately on start, every 15s while open, and on every  */
+/* return to the app (AppState 'active').                              */
+/* ------------------------------------------------------------------ */
+let syncStartedFor: string | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let appStateSub: { remove: () => void } | null = null;
+
+export function startRemoteAutoSync(userId: string) {
+  if (syncStartedFor === userId) return;
+  stopRemoteAutoSync();
+  syncStartedFor = userId;
+  refreshRemote(userId); // 1) refresh on open
+  pollTimer = setInterval(() => refreshRemote(userId), 15000); // 2) every 15s
+  appStateSub = AppState.addEventListener('change', (s: AppStateStatus) => {
+    if (s === 'active') refreshRemote(userId); // 3) on return to app
+  });
+}
+
+export function stopRemoteAutoSync() {
+  syncStartedFor = null;
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (appStateSub) { appStateSub.remove(); appStateSub = null; }
 }
 
 /* ------------------------------------------------------------------ */

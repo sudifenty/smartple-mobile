@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { Alert, View, Text, Pressable } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { refreshRemote, fetchLatestNudge, dismissNudge, wasShown, Nudge } from '../lib/remote';
+import { refreshRemote, getRemote, fetchLatestNudge, dismissNudge, wasShown, Nudge, startRemoteAutoSync, stopRemoteAutoSync, subscribeRemote } from '../lib/remote';
 import { startUsageTracking } from '../lib/usage';
 import type { Session } from '@supabase/supabase-js';
 
@@ -21,13 +21,29 @@ export default function Layout() {
   // EXAM LOCK: checked first on mount and on every navigation.
   // A locked exam → hard redirect to /exam/[id]; no back, no close.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session); setReady(true);
+      if (data.session?.user) startRemoteAutoSync(data.session.user.id);
+    });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
-      if (s?.user) { refreshRemote(s.user.id); startUsageTracking(s.user.id); }
+      if (s?.user) { startRemoteAutoSync(s.user.id); startUsageTracking(s.user.id); }
+      else stopRemoteAutoSync();
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Any remote change (15s poll / app resume) that locks or releases an exam
+  // navigates INSTANTLY — no need to wait for a screen change.
+  useEffect(() => {
+    if (!session?.user) return;
+    return subscribeRemote(() => {
+      const r = getRemote();
+      const inExam = segments[0] === 'exam';
+      if (r.lockedExam && !inExam) router.replace(`/exam/${r.lockedExam.exam_id}`);
+      if (!r.lockedExam && inExam) router.replace('/');
+    });
+  }, [session, segments]);
 
   useEffect(() => {
     if (!ready) return;

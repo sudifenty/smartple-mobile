@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { refreshRemote, getRemote, effectiveFilters, fetchLatestNudge, dismissNudge } from '../lib/remote';
+import { refreshRemote, getRemote, effectiveFilters, fetchLatestNudge, dismissNudge, subscribeRemote } from '../lib/remote';
 import { fetchQuestionsFor } from '../lib/data';
 
 /**
@@ -37,6 +37,10 @@ export default function Home() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // teacher changed a setting? (15s auto-sync fires only on real changes)
+  // → reload home so buttons/topics match the new rules within seconds
+  useEffect(() => subscribeRemote(() => { load(); }), [load]);
 
   const f = effectiveFilters(profile?.class);
   const r = getRemote();
