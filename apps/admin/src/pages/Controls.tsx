@@ -42,9 +42,15 @@ export default function Controls() {
 
   const save = async () => {
     if (!a) return;
-    const { error } = await supabase.from('smartple_assignments').upsert({ ...a, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id' });
-    if (error) return alert(`Save FAILED — the student got nothing.\n\n${error.message}\n\nIf it says a column does not exist, the assignments table needs its columns restored (SQL from the assistant).`);
+    const payload = { ...a, updated_at: new Date().toISOString() };
+    // Manual upsert: the live table's key is its own `id` column, not
+    // user_id — so an on-conflict upsert targeting user_id is rejected.
+    const { data: existing } = await supabase.from('smartple_assignments')
+      .select('user_id').eq('user_id', a.user_id).limit(1);
+    const { error } = (existing && existing.length)
+      ? await supabase.from('smartple_assignments').update(payload).eq('user_id', a.user_id)
+      : await supabase.from('smartple_assignments').insert(payload);
+    if (error) return alert(`Save FAILED — the student got nothing.\n\n${error.message}`);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };

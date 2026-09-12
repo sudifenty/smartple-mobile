@@ -40,9 +40,14 @@ export default function Automations() {
   };
 
   const force = async (w: any, patch: any) => {
-    await supabase.from('smartple_assignments').upsert(
-      { user_id: w.user_id, ...patch, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id' });
+    const payload = { user_id: w.user_id, ...patch, updated_at: new Date().toISOString() };
+    // manual upsert (the table's key is `id`, not user_id — see Controls.tsx)
+    const { data: existing } = await supabase.from('smartple_assignments')
+      .select('user_id').eq('user_id', w.user_id).limit(1);
+    const { error } = (existing && existing.length)
+      ? await supabase.from('smartple_assignments').update(payload).eq('user_id', w.user_id)
+      : await supabase.from('smartple_assignments').insert(payload);
+    if (error) return alert('Save failed: ' + error.message);
     alert('Saved to remote control.');
   };
 
