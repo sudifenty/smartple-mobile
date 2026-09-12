@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase, Profile, Assignment } from '../lib/supabase';
+import { fetchQuestions } from '../lib/events';
 
 const CLASSES = ['P4', 'P5', 'P6', 'P7'];
 const TIERS = [1, 2, 3, 4, 5];
@@ -32,10 +33,9 @@ export default function Controls() {
   };
 
   const refreshTopics = async (subject: string | null) => {
-    let query = supabase.from('smartple_questions').select('topic, subject');
-    if (subject) query = query.eq('subject', subject);
-    const { data } = await query;
-    setTopics(Array.from(new Set((data || []).map((r: any) => r.topic))));
+    const qs = await fetchQuestions();
+    const filtered = qs.filter(q => q.topic && (!subject || q.subject === subject));
+    setTopics(Array.from(new Set(filtered.map(q => q.topic as string))));
   };
 
   const set = (patch: Partial<Assignment>) => setA(prev => prev ? { ...prev, ...patch } : prev);

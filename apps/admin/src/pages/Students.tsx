@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase, Profile } from '../lib/supabase';
+import { fetchEvents, eventsFor } from '../lib/events';
 import StudentView from './StudentView';
 
 type Row = { subject: string; topic: string; subtopic: string | null; avg_score: number; n: number };
@@ -24,16 +25,14 @@ export default function Students() {
   const pick = async (s: Profile) => {
     setSel(s);
     setView('progress');
-    // weakest subtopics first (heatmap source)
-    const { data: attempts } = await supabase.from('smartple_attempts')
-      .select('subject, topic, subtopic, is_correct, skipped, tier')
-      .eq('user_id', s.user_id);
+    // weakest subtopics first (heatmap source) — from learning_events
+    const attempts = eventsFor(await fetchEvents(), s.user_id);
     const acc: Record<string, Row> = {};
     const sk: Record<string, Skip> = {};
-    for (const a of attempts || []) {
+    for (const a of attempts) {
       const key = `${a.subject}|${a.topic}|${a.subtopic || '-'}`;
       acc[key] = acc[key] || { subject: a.subject, topic: a.topic, subtopic: a.subtopic, avg_score: 0, n: 0 };
-      if (a.is_correct !== null) { acc[key].avg_score += a.is_correct ? 100 : 0; acc[key].n += 1; }
+      if (a.correct !== null) { acc[key].avg_score += a.correct ? 100 : 0; acc[key].n += 1; }
       if (a.skipped) {
         const k2 = `${a.topic}|${a.tier}`;
         sk[k2] = sk[k2] || { topic: a.topic, tier: a.tier, n: 0 };

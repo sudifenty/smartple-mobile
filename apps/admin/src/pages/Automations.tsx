@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase, Profile } from '../lib/supabase';
+import { fetchEvents } from '../lib/events';
 
 export default function Automations() {
   const [weak, setWeak] = useState<any[] | null>(null);
@@ -8,9 +9,34 @@ export default function Automations() {
   const [sent, setSent] = useState('');
 
   const scanWeak = async () => {
-    const { data, error } = await supabase.rpc('scan_weak_students');
-    if (error) return alert(error.message);
-    setWeak(data || []);
+    // computed client-side from learning_events (old scan_weak_students RPC
+    // referenced the dropped smartple_attempts table)
+    const [{ data: p }, evts] = await Promise.all([
+      supabase.from('smartple_profiles').select('*').eq('role', 'student'),
+      fetchEvents()
+    ]);
+    const prof: Record<string, any> = {};
+    for (const r of (p as any[]) || []) if (r.user_id) prof[r.user_id] = r;
+    const acc: Record<string, { uid: string; subject: string; topic: string; sum: number; n: number }> = {};
+    for (const e of evts) {
+      if (e.correct === null || !e.topic) continue;
+      const key = `${e.uid}|${e.subject}|${e.topic}`;
+      acc[key] = acc[key] || { uid: e.uid, subject: e.subject, topic: e.topic, sum: 0, n: 0 };
+      acc[key].sum += e.correct ? 100 : 0; acc[key].n += 1;
+    }
+    const rows = Object.values(acc)
+      .map(a => {
+        const avg = Math.round(a.sum / a.n);
+        const pr = prof[a.uid];
+        return {
+          user_id: a.uid, display_name: pr?.display_name || a.uid.slice(0, 8), class: pr?.class || null,
+          subject: a.subject || '—', topic: a.topic, avg_score: avg,
+          suggestion: pr?.class && pr.class !== 'P4' ? 'Force to P4?' : 'Force Tier 1?'
+        };
+      })
+      .filter(r => r.avg_score < 50)
+      .sort((x, y) => x.avg_score - y.avg_score);
+    setWeak(rows);
   };
 
   const force = async (w: any, patch: any) => {

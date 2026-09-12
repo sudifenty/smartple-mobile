@@ -1,39 +1,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchEvents, fetchLastSeen, Evt } from '../lib/events';
 
 /**
  * Live Activity — reads the REAL tables:
- *   learning_events  → answers / activity feed (realtime enabled on it)
- *   profiles         → last_seen (+ email for names)
- *   smartple_profiles→ display names
- * Column names are mapped defensively because learning_events was created
- * outside this repo and its exact columns can vary.
+ *   learning_events → answers / activity feed (realtime enabled on it)
+ *   profiles        → last_seen (+ email for names)
+ *   smartple_profiles → display names
  */
-
-const pick = (r: any, keys: string[]): any => {
-  for (const k of keys) if (r?.[k] !== undefined && r?.[k] !== null) return r[k];
-  return undefined;
-};
-
-type Evt = { uid: string; topic: string; tier: number | null; correct: boolean | null; skipped: boolean; at: string };
-
-const toEvt = (r: any): Evt | null => {
-  const uid = pick(r, ['user_id', 'student_id', 'profile_id', 'user']);
-  const at = pick(r, ['created_at', 'timestamp', 'at', 'time']);
-  if (!uid || !at) return null;
-  const rawCorrect = pick(r, ['is_correct', 'correct']);
-  const result = pick(r, ['result', 'outcome']);
-  const correct = typeof rawCorrect === 'boolean' ? rawCorrect
-    : result === 'correct' ? true : result === 'incorrect' || result === 'wrong' ? false : null;
-  return {
-    uid: String(uid),
-    topic: String(pick(r, ['topic', 'subject', 'title', 'activity', 'event_type']) ?? 'activity'),
-    tier: pick(r, ['tier', 'level']) ?? null,
-    correct,
-    skipped: pick(r, ['skipped']) === true || pick(r, ['event_type']) === 'skipped',
-    at: String(at)
-  };
-};
 
 const ago = (iso: string) => {
   const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -49,34 +23,19 @@ export default function Live() {
   const [names, setNames] = useState<Record<string, string>>({});
   const [events, setEvents] = useState<Evt[]>([]);
   const [lastSeen, setLastSeen] = useState<Record<string, string>>({});
-  const [err, setErr] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
   const load = async () => {
-    const [le, sp, pf] = await Promise.all([
-      supabase.from('learning_events').select('*').order('created_at', { ascending: false }).limit(200),
+    const [evts, sp, ls] = await Promise.all([
+      fetchEvents(300),
       supabase.from('smartple_profiles').select('*').eq('role', 'student'),
-      supabase.from('profiles').select('*').limit(300)
+      fetchLastSeen()
     ]);
-    if (le.error) {
-      setErr(String(le.error.message || le.error.code));
-      return;
-    }
-    setErr(null);
-
     const nm: Record<string, string> = {};
     for (const r of (sp.data as any[]) || [])
       if (r.user_id) nm[String(r.user_id)] = r.display_name || String(r.user_id).slice(0, 8);
-    const ls: Record<string, string> = {};
-    for (const r of (pf.data as any[]) || []) {
-      const id = String(r.id);
-      if (r.email && !nm[id]) nm[id] = String(r.email).split('@')[0];
-      if (r.last_seen) ls[id] = String(r.last_seen);
-    }
     setNames(nm);
     setLastSeen(ls);
-
-    const evts = ((le.data as any[]) || []).map(toEvt).filter(Boolean) as Evt[];
     setEvents(evts);
   };
 
@@ -142,13 +101,6 @@ export default function Live() {
         <span className="text-xs text-slate-400 ml-auto">realtime on learning_events + 15s refresh</span>
       </div>
 
-      {err && (
-        <div className="card mb-3 border-2 border-red-300 text-sm">
-          <b className="text-red-700">Can't read learning_events yet:</b> {err}
-          <p className="text-slate-600 mt-1">Run the GRANT + policy SQL (chat) in the old project's SQL Editor, then this page fills up.</p>
-        </div>
-      )}
-
       {active.length > 0 && (
         <div className="grid md:grid-cols-2 gap-3 mb-4">
           {active.map(([uid, st]) => <StudentCard key={uid} uid={uid} st={st} isActive />)}
@@ -178,7 +130,7 @@ export default function Live() {
                 <td className="td text-slate-500">{ago(e.at)}</td>
               </tr>
             ))}
-            {!events.length && !err && <tr><td className="td text-slate-400" colSpan={5}>No events yet — activity appears here the moment students use the app.</td></tr>}
+            {!events.length && <tr><td className="td text-slate-400" colSpan={5}>No events yet — activity appears here the moment students use the app.</td></tr>}
           </tbody>
         </table>
       </div>

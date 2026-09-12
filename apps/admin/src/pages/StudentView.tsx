@@ -1,47 +1,46 @@
 import { useEffect, useState } from 'react';
 import { supabase, Profile } from '../lib/supabase';
+import { fetchEvents, eventsFor, fetchQuestions, Evt } from '../lib/events';
 
 /**
  * "Student View" — renders what THIS student sees in their app, using their
- * data. No login, no password: the admin session reads the student's rows
- * (allowed because admins have full read access).
+ * data. No login, no password: the admin session reads the student's rows.
+ * Reads the NEW schema: learning_events (answers) + questions (topics).
  */
 export default function StudentView({ student }: { student: Profile }) {
   const [assignment, setAssignment] = useState<any>(null);
   const [topics, setTopics] = useState<{ subject: string; topic: string }[]>([]);
-  const [recent, setRecent] = useState<any[]>([]);
+  const [recent, setRecent] = useState<Evt[]>([]);
   const [nudges, setNudges] = useState<any[]>([]);
-  const [exam, setExam] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
     (async () => {
       const uid = student.user_id;
-      const [{ data: a }, { data: rec }, { data: nud }, { data: ex }] = await Promise.all([
+      const [{ data: a }, { data: nud }, evts, qs] = await Promise.all([
         supabase.from('smartple_assignments').select('*').eq('user_id', uid).maybeSingle(),
-        supabase.from('smartple_attempts').select('topic, tier, is_correct, skipped, created_at')
-          .eq('user_id', uid).order('created_at', { ascending: false }).limit(12),
         supabase.from('smartple_nudges').select('message, created_at')
           .eq('user_id', uid).order('created_at', { ascending: false }).limit(5),
-        supabase.from('smartple_exam_assignments').select('*')
-          .eq('user_id', uid).in('status', ['locked', 'in_progress'])
-          .order('created_at', { ascending: false }).limit(1).maybeSingle()
+        fetchEvents(),
+        fetchQuestions()
       ]);
       const asg = a as any;
       setAssignment(asg || null);
-      setRecent((rec as any[]) || []);
+      setRecent(eventsFor(evts, uid).slice(0, 12));
       setNudges((nud as any[]) || []);
-      setExam((ex as any) || null);
 
       // topics exactly as the student's home screen computes them
       const klass = asg?.forced_class || student.class || 'P6';
-      let q = supabase.from('smartple_questions').select('subject, topic').eq('class', klass);
-      if (asg?.forced_subject) q = q.eq('subject', asg.forced_subject);
-      if (asg?.forced_topic) q = q.eq('topic', asg.forced_topic);
-      const { data: qs } = await q;
+      const filtered = qs.filter(q =>
+        (!q.klass || q.klass === klass) &&
+        (!asg?.forced_subject || q.subject === asg.forced_subject) &&
+        (!asg?.forced_topic || q.topic === asg.forced_topic));
       const uniq: Record<string, { subject: string; topic: string }> = {};
-      for (const row of (qs as any[]) || []) uniq[`${row.subject}|${row.topic}`] = row;
+      for (const q of filtered) {
+        if (!q.topic) continue;
+        uniq[`${q.subject || ''}|${q.topic}`] = { subject: q.subject || '—', topic: q.topic };
+      }
       setTopics(Object.values(uniq));
       setLoading(false);
     })();
@@ -62,13 +61,6 @@ export default function StudentView({ student }: { student: Profile }) {
           {assignment?.forced_topic ? ` · ${assignment.forced_topic}` : ''}
         </p>
       </div>
-
-      {exam && (
-        <div className="card mb-3 border-2 border-red-300">
-          <b className="text-red-700">🔒 Locked exam:</b> this student is forced straight into
-          exam #{exam.exam_id} ({exam.status}) when they open the app.
-        </div>
-      )}
 
       {assignment && (
         <div className="card mb-3">
@@ -94,7 +86,7 @@ export default function StudentView({ student }: { student: Profile }) {
             <span className="text-xs text-slate-400">📖 ✏️ 🚀</span>
           </div>
         ))}
-        {!loading && !topics.length && <p className="text-sm text-slate-400">No topics for this class/filter — the student sees an empty home screen. Fix via Remote Control or add questions.</p>}
+        {!loading && !topics.length && <p className="text-sm text-slate-400">The questions bank is empty for this class/filter — the student sees an empty home screen. Add questions or adjust Remote Control.</p>}
       </div>
 
       {nudges.length > 0 && (
@@ -111,7 +103,7 @@ export default function StudentView({ student }: { student: Profile }) {
         {recent.map((a, i) => (
           <div key={i} className="flex justify-between text-sm py-1 border-b border-slate-100 last:border-0">
             <span>{a.topic} {a.tier ? `T${a.tier}` : ''}</span>
-            <span>{a.skipped ? '⏭ skipped' : a.is_correct ? '✓' : a.is_correct === false ? '✗' : '—'} <span className="text-xs text-slate-400">{new Date(a.created_at).toLocaleTimeString()}</span></span>
+            <span>{a.skipped ? '⏭ skipped' : a.correct ? '✓' : a.correct === false ? '✗' : '—'} <span className="text-xs text-slate-400">{new Date(a.at).toLocaleTimeString()}</span></span>
           </div>
         ))}
         {!recent.length && <p className="text-sm text-slate-400">No answers yet.</p>}
