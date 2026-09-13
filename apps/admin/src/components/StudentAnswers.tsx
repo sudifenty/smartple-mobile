@@ -21,6 +21,10 @@ import { supabase, Profile } from '../lib/supabase';
 type Ans = {
   q: string; given: string; answer: string; ok: boolean | null;
   kind: string; marks: number; qid?: string; self?: string | null; max?: number;
+  /* the words themselves, as the phone stored them. Present on every answer
+     submitted since the app started recording them; older rows have only a
+     letter and fall back to optionText(). */
+  given_text?: string; answer_text?: string;
 };
 type Attempt = {
   key: string; at: string; source: 'exam' | 'practice';
@@ -53,6 +57,7 @@ function toAttempt(r: any, i: number): Attempt | null {
       auto: practice ? false : !!d.auto,
       answers: d.answers.map((a: any) => ({
         q: str(a.q), given: str(a.given), answer: str(a.answer),
+        given_text: str(a.given_text), answer_text: str(a.answer_text),
         ok: typeof a.ok === 'boolean' ? a.ok : null,
         kind: str(a.kind) || 'short', marks: Number(a.marks) || 0,
         qid: a.qid, self: a.self || null, max: a.max == null ? null : Number(a.max)
@@ -231,8 +236,15 @@ export default function StudentAnswers({ student }: { student: Profile }) {
 
             <div className="mt-2 space-y-2">
               {visible.map((q, i) => {
-                /* the letter they tapped becomes the words they chose */
-                const words = optionText(a.examId != null ? papers[a.examId] : null, q) || (q.given || '').trim();
+                /* What they wrote, in words. The phone now stores the option
+                   text itself, so that wins — it survives a later edit to the
+                   paper. Older rows only stored a letter, so the paper is used
+                   to turn it back into words, and the raw letter is the last
+                   resort. */
+                const words = (q.given_text || '').trim()
+                  || optionText(a.examId != null ? papers[a.examId] : null, q)
+                  || (q.given || '').trim();
+                const model = (q.answer_text || '').trim() || (q.answer || '').trim();
                 return (
                 <div key={i} className="border rounded-lg p-2 bg-white">
                   <div className="text-xs text-slate-500">Q{i + 1}. {q.q || '(no question text was stored)'}</div>
@@ -242,8 +254,8 @@ export default function StudentAnswers({ student }: { student: Profile }) {
                       ? <span className="font-semibold text-slate-900">{words}</span>
                       : <span className="text-slate-400 italic">left blank — they wrote nothing here</span>}
                   </div>
-                  {q.answer
-                    ? <div className="text-xs text-slate-500 mt-1">model answer: {q.answer}</div>
+                  {model
+                    ? <div className="text-xs text-slate-500 mt-1">model answer: {model}</div>
                     : q.ok === null && <div className="text-xs text-amber-600 mt-1">no model answer was saved with this question</div>}
                   {q.self && (
                     <div className="text-[11px] text-indigo-600 mt-1">

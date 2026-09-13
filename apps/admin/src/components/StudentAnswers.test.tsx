@@ -264,3 +264,55 @@ describe('StudentAnswers · a multiple-choice answer shown as words', () => {
     expect(screen.getByText('Q2. What is meant by “Trade”?')).toBeTruthy();
   });
 });
+
+
+/* The phone now records the option text itself, so the teacher's view no longer
+   depends on the paper still existing in smartple_exams. These rows are exactly
+   what a current build of the app sends. */
+const WORDS_ROW = {
+  id: 21, event_type: 'exam_submitted', user_id: BOLTON.user_id,
+  created_at: '2026-09-13T14:00:00+00:00',
+  details: {
+    auto: true, score: 50, title: 'Words paper', exam_id: 99,   /* a paper the admin has never loaded */
+    answers: [
+      { q: 'What is meant by “Trade”?', ok: true, kind: 'mcq', given: 'B', marks: 1, answer: 'B',
+        given_text: 'B. The buying and selling of goods and services',
+        answer_text: 'B. The buying and selling of goods and services' },
+      { q: 'State one country in the East African Community.', ok: null, kind: 'short',
+        given: 'Countries in one region working together', answer: 'Kenya', marks: 2,
+        given_text: 'Countries in one region working together', answer_text: 'Kenya' },
+      { q: 'Name the currency used in Kenya.', ok: false, kind: 'short', given: '', answer: '',
+        marks: 1, given_text: '', answer_text: '' }
+    ]
+  }
+};
+
+describe('StudentAnswers · the words stored by the phone itself', () => {
+  beforeEach(() => { document.body.innerHTML = ''; EVENTS = [WORDS_ROW]; });
+
+  it('shows the option they chose in words, without needing the paper', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    expect(screen.getByText(
+      'B. The buying and selling of goods and services')).toBeTruthy();
+    expect(screen.queryAllByText('B'), 'the letter must never appear on its own').toHaveLength(0);
+  });
+
+  it('shows their written answer exactly as they typed it', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    expect(screen.getByText('Countries in one region working together')).toBeTruthy();
+    expect(screen.getByText('model answer: Kenya')).toBeTruthy();
+  });
+
+  it('still reads a blank as a blank', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    expect(screen.getAllByText('left blank — they wrote nothing here')).toHaveLength(1);
+    expect(bodyText()).toMatch(/1 left blank/);
+    expect(bodyText()).toMatch(/1 waiting for you to mark/);
+  });
+});
