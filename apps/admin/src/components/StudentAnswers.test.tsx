@@ -14,9 +14,9 @@ const BOLTON = {
   display_name: 'Bolton', class: 'P6', role: 'student' as const
 };
 
-/* learning_events, as returned by PostgREST: payload inside `details` */
-const EVENTS = [
-  {
+/* learning_events, as returned by PostgREST: payload inside `details`.
+   Mutable so a test can add a practice run to Bolton's history. */
+const EXAM_ROW = {
     id: 7, event_type: 'exam_submitted', user_id: BOLTON.user_id,
     created_at: '2026-09-13T09:06:28.345775+00:00',
     details: {
@@ -30,9 +30,36 @@ const EVENTS = [
         { q: 'countries that formed East African Community', ok: null, kind: 'short', given: '', marks: 2, answer: '' }
       ]
     }
-  },
-  { id: 8, event_type: 'screen_view', user_id: BOLTON.user_id, created_at: '2026-09-13T09:09:45+00:00', details: { screen: 'practice' } }
-];
+  };
+const SCREEN_ROW =
+  { id: 8, event_type: 'screen_view', user_id: BOLTON.user_id, created_at: '2026-09-13T09:09:45+00:00', details: { screen: 'practice' } };
+
+/* exactly what the phone now posts when a practice run is finished: prose
+   answers carry the learner's own verdict, because the app cannot mark them */
+const PRACTICE_ROW = {
+  id: 9, event_type: 'practice_submitted', user_id: BOLTON.user_id,
+  created_at: '2026-09-13T11:20:00+00:00',
+  details: {
+    cls: 'P6', subj: 'SST', tid: 'P6_SST_T01', topic: 'East Africa',
+    set: 'Basic Practice', mode: '', got: 3, max: 4, pct: 75,
+    answers: [
+      {
+        qid: 'P6_SST_T01_Q01', q: 'Name two countries that border Uganda.',
+        given: 'Kenya and Rwanda',
+        answer: 'Any two of: Kenya, Tanzania, Rwanda, South Sudan, DR Congo.',
+        kind: 'list', marks: 2, max: 2, ok: true, self: null, state: 'right'
+      },
+      {
+        qid: 'P6_SST_T01_Q02', q: 'Explain why the river Nile is important to Uganda.',
+        given: 'It gives water for drinking and fish for food',
+        answer: 'It supplies water for homes, farms and industry, gives fish, and is used to generate electricity at Jinja.',
+        kind: 'self', marks: 1, max: 2, ok: null, self: 'part', state: 'part'
+      }
+    ]
+  }
+};
+
+let EVENTS: any[] = [EXAM_ROW, SCREEN_ROW];
 
 const ASSIGNMENTS = [
   { id: 19, exam_id: 4, user_id: BOLTON.user_id, status: 'locked', score: null },
@@ -59,7 +86,7 @@ const StudentAnswers = (await import('../components/StudentAnswers')).default;
 const bodyText = () => (document.body.textContent || '').replace(/\s+/g, ' ');
 
 describe('StudentAnswers', () => {
-  beforeEach(() => { document.body.innerHTML = ''; });
+  beforeEach(() => { document.body.innerHTML = ''; EVENTS = [EXAM_ROW, SCREEN_ROW]; });
 
   it('shows exactly what Bolton wrote, word for word', async () => {
     render(<StudentAnswers student={BOLTON} />);
@@ -121,7 +148,52 @@ describe('StudentAnswers', () => {
 
     await user.click(screen.getByRole('button', { name: 'practice' }));
     expect(screen.getByText('Nothing recorded yet.')).toBeTruthy();
-    /* the honest gap, stated in the UI rather than left as a silent blank */
-    expect(bodyText()).toMatch(/Practice answers are not sent to you yet/);
+    /* the honest gap: practice before this update stayed on the phone */
+    expect(bodyText()).toMatch(/only\s+from runs finished after this update/);
+  });
+});
+
+
+describe('StudentAnswers · practice runs', () => {
+  beforeEach(() => { document.body.innerHTML = ''; EVENTS = [PRACTICE_ROW]; });
+
+  it('shows what the learner wrote in a practice run', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    expect(screen.getByText('Name two countries that border Uganda.')).toBeTruthy();
+    expect(bodyText()).toContain('Kenya and Rwanda');
+    expect(screen.getByText('East Africa · Basic Practice', { selector: 'b' })).toBeTruthy();
+    expect(screen.getByText('75%')).toBeTruthy();
+    expect(bodyText()).toMatch(/2 answers recorded/);
+  });
+
+  it('shows the model answer next to a prose answer they marked themselves', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    expect(bodyText()).toContain('It gives water for drinking and fish for food');
+    expect(bodyText()).toContain('It supplies water for homes, farms and industry');
+    /* the learner's own verdict, with what they awarded themselves */
+    expect(screen.getByText(/they marked this themselves: partly correct · gave themselves 1\/2/)).toBeTruthy();
+    expect(bodyText()).toMatch(/marked on the phone — prose answers were marked by the learner/);
+  });
+
+  it('counts a self-marked prose answer as waiting for the teacher', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+    expect(bodyText()).toMatch(/1 correct/);
+    expect(bodyText(), 'the prose answer was only self-marked').toMatch(/1 waiting for you/);
+  });
+
+  it('appears under the practice filter and not under exams', async () => {
+    const user = userEvent.setup();
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    await user.click(screen.getByRole('button', { name: 'exams' }));
+    expect(screen.getByText('Nothing recorded yet.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'practice' }));
+    expect(screen.getByText('Name two countries that border Uganda.')).toBeTruthy();
   });
 });

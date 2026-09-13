@@ -18,7 +18,10 @@ import { supabase, Profile } from '../lib/supabase';
                     shown beside it
 ------------------------------------------------------------------ */
 
-type Ans = { q: string; given: string; answer: string; ok: boolean | null; kind: string; marks: number; qid?: string };
+type Ans = {
+  q: string; given: string; answer: string; ok: boolean | null;
+  kind: string; marks: number; qid?: string; self?: string | null; max?: number;
+};
 type Attempt = {
   key: string; at: string; source: 'exam' | 'practice';
   title: string; score: number | null; auto: boolean; answers: Ans[];
@@ -36,16 +39,22 @@ const str = (v: any) => (v == null ? '' : String(v));
 function toAttempt(r: any, i: number): Attempt | null {
   const d = r?.details && typeof r.details === 'object' ? r.details : {};
   const at = str(r.created_at);
-  if (r.event_type === 'exam_submitted' && Array.isArray(d.answers)) {
+  const batched = r.event_type === 'exam_submitted' || r.event_type === 'practice_submitted';
+  if (batched && Array.isArray(d.answers)) {
+    const practice = r.event_type === 'practice_submitted';
     return {
-      key: `e${r.id ?? i}`, at, source: 'exam',
-      title: str(d.title) || `exam ${d.exam_id ?? ''}`.trim(),
-      score: d.score == null ? null : Number(d.score),
-      auto: !!d.auto,
+      key: `${practice ? 'p' : 'e'}${r.id ?? i}`, at,
+      source: practice ? 'practice' : 'exam',
+      title: practice
+        ? [d.topic, d.set].filter(Boolean).join(' · ') || 'Practice'
+        : str(d.title) || `exam ${d.exam_id ?? ''}`.trim(),
+      score: d.score != null ? Number(d.score) : (d.pct != null ? Number(d.pct) : null),
+      auto: practice ? false : !!d.auto,
       answers: d.answers.map((a: any) => ({
         q: str(a.q), given: str(a.given), answer: str(a.answer),
         ok: typeof a.ok === 'boolean' ? a.ok : null,
-        kind: str(a.kind) || 'short', marks: Number(a.marks) || 0, qid: a.qid
+        kind: str(a.kind) || 'short', marks: Number(a.marks) || 0,
+        qid: a.qid, self: a.self || null, max: a.max == null ? null : Number(a.max)
       }))
     };
   }
@@ -187,7 +196,9 @@ export default function StudentAnswers({ student }: { student: Profile }) {
               )}
               {a.score != null && (
                 <span className="text-[11px] text-slate-400">
-                  {a.auto ? 'marked automatically' : 'auto-marked part only — written answers still need you'}
+                  {a.source === 'practice'
+                    ? 'marked on the phone — prose answers were marked by the learner'
+                    : a.auto ? 'marked automatically' : 'auto-marked part only — written answers still need you'}
                 </span>
               )}
               <span className="ml-auto text-xs text-slate-400">
@@ -211,6 +222,12 @@ export default function StudentAnswers({ student }: { student: Profile }) {
                       {q.answer
                         ? <div className="text-xs text-slate-500 mt-0.5">model answer: {q.answer}</div>
                         : q.ok === null && <div className="text-xs text-amber-600 mt-0.5">no model answer was saved with this question — mark it from the paper</div>}
+                      {q.self && (
+                        <div className="text-[11px] text-indigo-600 mt-0.5">
+                          they marked this themselves: {q.self === 'right' ? 'correct' : q.self === 'part' ? 'partly correct' : 'wrong'}
+                          {q.max != null && ` · gave themselves ${q.marks}/${q.max}`}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right">
                       <Verdict ok={q.ok} />
@@ -227,9 +244,9 @@ export default function StudentAnswers({ student }: { student: Profile }) {
       {!shown.length && (
         <div className="card text-sm text-slate-500 space-y-1">
           <b>Nothing recorded yet.</b>
-          <p>Exam answers arrive here the moment they submit. Practice answers are not sent to you yet —
-             the phone keeps those on the device — so a student can practise without anything showing up here.
-             Say the word and I will make the phone send them too.</p>
+          <p>Exam answers arrive here the moment they submit. Practice answers now arrive too, but only
+             from runs finished after this update — practice done before it stayed on the phone and cannot
+             be recovered. A run finished offline is delivered the next time the phone connects.</p>
         </div>
       )}
     </div>
