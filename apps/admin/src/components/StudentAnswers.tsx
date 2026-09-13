@@ -25,7 +25,7 @@ type Ans = {
 type Attempt = {
   key: string; at: string; source: 'exam' | 'practice';
   title: string; score: number | null; auto: boolean; answers: Ans[];
-  subject?: string; topic?: string;
+  subject?: string; topic?: string; examId?: number;
 };
 
 const when = (iso: string) => {
@@ -45,6 +45,7 @@ function toAttempt(r: any, i: number): Attempt | null {
     return {
       key: `${practice ? 'p' : 'e'}${r.id ?? i}`, at,
       source: practice ? 'practice' : 'exam',
+      examId: d.exam_id == null ? undefined : Number(d.exam_id),
       title: practice
         ? [d.topic, d.set].filter(Boolean).join(' · ') || 'Practice'
         : str(d.title) || `exam ${d.exam_id ?? ''}`.trim(),
@@ -81,8 +82,27 @@ const Verdict = ({ ok }: { ok: boolean | null }) => {
   return <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${c}`}>{t}</span>;
 };
 
+/* A multiple-choice answer is stored as the letter the learner tapped ("A").
+   That is useless to read, so it is turned back into the option they chose
+   using the paper as it was saved. Matching is by the question's own wording,
+   falling back to position, so it still works if a paper was edited. */
+function optionText(paper: any, ans: Ans): string | null {
+  const letter = (ans.given || '').trim().toUpperCase();
+  if (!/^[A-D]$/.test(letter)) return null;
+  if (!paper) return null;
+  const qs: any[] = paper.kind === 'pdf'
+    ? (paper.boxes || []).map((b: any) => ({ q: b.label || `Question ${b.n}`, options: b.options }))
+    : (paper.questions || (Array.isArray(paper) ? paper : []));
+  const byText = qs.find((q: any) => String(q?.q || '').trim() === String(ans.q || '').trim());
+  const q = byText || qs[Number(ans.qid?.replace(/\D+/g, '')) - 1] || null;
+  const opts: string[] = Array.isArray(q?.options) ? q.options : [];
+  const i = letter.charCodeAt(0) - 65;
+  return opts[i] ? `${letter}. ${opts[i]}` : null;
+}
+
 export default function StudentAnswers({ student }: { student: Profile }) {
   const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [papers, setPapers] = useState<Record<number, any>>({});
   const [pending, setPending] = useState<{ title: string; status: string }[]>([]);
   const [filter, setFilter] = useState<'all' | 'exam' | 'practice'>('all');
   const [openOnly, setOpenOnly] = useState(false);
@@ -98,10 +118,13 @@ export default function StudentAnswers({ student }: { student: Profile }) {
         supabase.from('learning_events').select('*').eq('user_id', uid)
           .order('created_at', { ascending: false }).limit(500),
         supabase.from('smartple_exam_assignments').select('*').eq('user_id', uid),
-        supabase.from('smartple_exams').select('id, title')
+        supabase.from('smartple_exams').select('id, title, questions')
       ]);
       if (!live) return;
       if (error) setErr(String(error.message));
+      const byId: Record<number, any> = {};
+      for (const e of (exams as any[]) || []) byId[Number(e.id)] = e.questions;
+      setPapers(byId);
       const rows = (ev as any[]) || [];
       setAttempts(rows.map(toAttempt).filter(Boolean) as Attempt[]);
 
@@ -124,12 +147,13 @@ export default function StudentAnswers({ student }: { student: Profile }) {
     [attempts, filter]);
 
   const totals = useMemo(() => {
-    let right = 0, wrong = 0, marking = 0, questions = 0;
+    let right = 0, wrong = 0, marking = 0, questions = 0, blank = 0;
     for (const a of attempts) for (const q of a.answers) {
       questions++;
+      if (!(q.given || '').trim()) blank++;
       if (q.ok === true) right++; else if (q.ok === false) wrong++; else marking++;
     }
-    return { right, wrong, marking, questions };
+    return { right, wrong, marking, questions, blank };
   }, [attempts]);
 
   if (loading) return <div className="card text-sm text-slate-500">reading {student.display_name}'s answers…</div>;
@@ -153,9 +177,8 @@ export default function StudentAnswers({ student }: { student: Profile }) {
         </div>
         <div className="flex gap-2 flex-wrap mt-2 text-xs">
           <span className="px-2 py-1 rounded-lg bg-slate-100">{totals.questions} answers recorded</span>
-          <span className="px-2 py-1 rounded-lg bg-green-50 text-green-700">{totals.right} correct</span>
-          <span className="px-2 py-1 rounded-lg bg-red-50 text-red-700">{totals.wrong} not correct</span>
-          <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700">{totals.marking} waiting for you</span>
+          <span className="px-2 py-1 rounded-lg bg-slate-100">{totals.blank} left blank</span>
+          <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700">{totals.marking} waiting for you to mark</span>
         </div>
         <label className="text-xs text-slate-500 mt-2 flex items-center gap-1">
           <input type="checkbox" checked={openOnly} onChange={() => setOpenOnly(v => !v)} />
@@ -207,35 +230,36 @@ export default function StudentAnswers({ student }: { student: Profile }) {
             </div>
 
             <div className="mt-2 space-y-2">
-              {visible.map((q, i) => (
+              {visible.map((q, i) => {
+                /* the letter they tapped becomes the words they chose */
+                const words = optionText(a.examId != null ? papers[a.examId] : null, q) || (q.given || '').trim();
+                return (
                 <div key={i} className="border rounded-lg p-2 bg-white">
-                  <div className="flex items-start gap-2">
-                    <span className="text-xs text-slate-400 mt-0.5">Q{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm">{q.q || '(no question text was stored)'}</div>
-                      <div className="text-sm mt-1">
-                        <span className="text-xs text-slate-400">answered: </span>
-                        {q.given
-                          ? <b className={q.ok === false ? 'text-red-700' : ''}>{q.given}</b>
-                          : <span className="text-slate-400 italic">left blank</span>}
-                      </div>
-                      {q.answer
-                        ? <div className="text-xs text-slate-500 mt-0.5">model answer: {q.answer}</div>
-                        : q.ok === null && <div className="text-xs text-amber-600 mt-0.5">no model answer was saved with this question — mark it from the paper</div>}
-                      {q.self && (
-                        <div className="text-[11px] text-indigo-600 mt-0.5">
-                          they marked this themselves: {q.self === 'right' ? 'correct' : q.self === 'part' ? 'partly correct' : 'wrong'}
-                          {q.max != null && ` · gave themselves ${q.marks}/${q.max}`}
-                        </div>
-                      )}
+                  <div className="text-xs text-slate-500">Q{i + 1}. {q.q || '(no question text was stored)'}</div>
+                  {/* what they wrote is the biggest thing on the card */}
+                  <div className="mt-1 text-[15px] leading-snug break-words">
+                    {words
+                      ? <span className="font-semibold text-slate-900">{words}</span>
+                      : <span className="text-slate-400 italic">left blank — they wrote nothing here</span>}
+                  </div>
+                  {q.answer
+                    ? <div className="text-xs text-slate-500 mt-1">model answer: {q.answer}</div>
+                    : q.ok === null && <div className="text-xs text-amber-600 mt-1">no model answer was saved with this question</div>}
+                  {q.self && (
+                    <div className="text-[11px] text-indigo-600 mt-1">
+                      they marked this themselves: {q.self === 'right' ? 'correct' : q.self === 'part' ? 'partly correct' : 'wrong'}
+                      {q.max != null && ` · gave themselves ${q.marks}/${q.max}`}
                     </div>
-                    <div className="text-right">
-                      <Verdict ok={q.ok} />
-                      <div className="text-[11px] text-slate-400 mt-1">{q.marks} mark{q.marks === 1 ? '' : 's'}</div>
-                    </div>
+                  )}
+                  {/* the verdict stays, but small and underneath */}
+                  <div className="mt-1 flex items-center gap-2 flex-wrap">
+                    <Verdict ok={q.ok} />
+                    <span className="text-[11px] text-slate-400">{q.marks} mark{q.marks === 1 ? '' : 's'}</span>
+                    {q.qid && <span className="text-[11px] text-slate-300">{q.qid}</span>}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         );

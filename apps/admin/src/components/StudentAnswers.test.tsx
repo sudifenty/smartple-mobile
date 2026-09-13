@@ -65,7 +65,45 @@ const ASSIGNMENTS = [
   { id: 19, exam_id: 4, user_id: BOLTON.user_id, status: 'locked', score: null },
   { id: 18, exam_id: 3, user_id: BOLTON.user_id, status: 'completed', score: 0 }
 ];
-const EXAMS = [{ id: 3, title: 'East African Community' }, { id: 4, title: 'Morning paper' }];
+/* exam 4 exactly as it is stored live: three multiple-choice questions */
+const MORNING_PAPER = {
+  kind: 'topic',
+  questions: [
+    { q: 'What is meant by “Regional cooperation”?', kind: 'mcq', marks: 1, answer: 'A',
+      options: ['When countries in the same region work together to achieve common goals',
+                'Cholera and typhoid from dirty water; malaria from stagnant water; coughs from smoke and dust',
+                'The activity of removing minerals from the ground',
+                'The sending and receiving of information from one person to another'] },
+    { q: 'What is meant by “Trade”?', kind: 'mcq', marks: 1, answer: 'C',
+      options: ['The movement of people and goods by using water bodies',
+                'The movement of people and goods from one place to another using roads',
+                'The buying and selling of goods and services',
+                'Ruling a colony through the existing African chiefs'] },
+    { q: 'What is meant by “Organ of the EAC”?', kind: 'mcq', marks: 1, answer: 'B',
+      options: ['The steps followed in choosing leaders through voting',
+                'A body responsible for carrying out particular duties of the Community',
+                'Overgrazing, tree cutting and bush burning turn land into semi-desert, as in parts of Karamoja',
+                'A country ruled directly by a foreign power'] }
+  ]
+};
+const EXAMS = [
+  { id: 3, title: 'East African Community' },
+  { id: 4, title: 'Morning paper', questions: MORNING_PAPER }
+];
+
+/* Bolton's real submission for that paper: he tapped A, and left two blank */
+const MORNING_ROW = {
+  id: 17, event_type: 'exam_submitted', user_id: BOLTON.user_id,
+  created_at: '2026-09-13T12:00:00+00:00',
+  details: {
+    auto: true, score: 33, title: 'Morning paper', exam_id: 4,
+    answers: [
+      { q: 'What is meant by “Regional cooperation”?', ok: true, kind: 'mcq', given: 'A', marks: 1, answer: 'A' },
+      { q: 'What is meant by “Trade”?', ok: false, kind: 'mcq', given: '', marks: 1, answer: 'C' },
+      { q: 'What is meant by “Organ of the EAC”?', ok: false, kind: 'mcq', given: '', marks: 1, answer: 'B' }
+    ]
+  }
+};
 
 function chain(rows: any) {
   const q: any = {
@@ -95,8 +133,8 @@ describe('StudentAnswers', () => {
     /* his real wording, including the spelling he used */
     expect(bodyText()).toContain(
       'East African comunity is a regional organization formed by East African countries to work for the benefit of their people');
-    expect(screen.getByText('what is East African Community')).toBeTruthy();
-    expect(screen.getByText('countries that formed East African Community')).toBeTruthy();
+    expect(screen.getByText('Q1. what is East African Community')).toBeTruthy();
+    expect(screen.getByText('Q2. countries that formed East African Community')).toBeTruthy();
   });
 
   it('marks written answers as needing the teacher, and shows a blank as blank', async () => {
@@ -105,14 +143,14 @@ describe('StudentAnswers', () => {
 
     const needs = screen.getAllByText('needs your marking');
     expect(needs, 'both of his answers were written, so neither marked itself').toHaveLength(2);
-    expect(screen.getByText('left blank')).toBeTruthy();
+    expect(screen.getByText('left blank — they wrote nothing here')).toBeTruthy();
     expect(screen.getAllByText(/no model answer was saved with this question/),
       'neither question was saved with a model answer').toHaveLength(2);
     expect(bodyText()).toMatch(/2 answers recorded/);
     expect(bodyText()).toMatch(/2 waiting for you/);
     /* nothing has been marked yet, so both marked counters are honestly zero */
-    expect(bodyText()).toMatch(/0 correct/);
-    expect(bodyText()).toMatch(/0 not correct/);
+    expect(bodyText(), 'one of his two answers was blank').toMatch(/1 left blank/);
+    expect(bodyText()).not.toMatch(/not correct/);
   });
 
   it('names the paper and says the score covered only the auto-marked part', async () => {
@@ -161,7 +199,7 @@ describe('StudentAnswers · practice runs', () => {
     render(<StudentAnswers student={BOLTON} />);
     await screen.findByText(/Everything Bolton has answered/);
 
-    expect(screen.getByText('Name two countries that border Uganda.')).toBeTruthy();
+    expect(screen.getByText('Q1. Name two countries that border Uganda.')).toBeTruthy();
     expect(bodyText()).toContain('Kenya and Rwanda');
     expect(screen.getByText('East Africa · Basic Practice', { selector: 'b' })).toBeTruthy();
     expect(screen.getByText('75%')).toBeTruthy();
@@ -182,8 +220,7 @@ describe('StudentAnswers · practice runs', () => {
   it('counts a self-marked prose answer as waiting for the teacher', async () => {
     render(<StudentAnswers student={BOLTON} />);
     await screen.findByText(/Everything Bolton has answered/);
-    expect(bodyText()).toMatch(/1 correct/);
-    expect(bodyText(), 'the prose answer was only self-marked').toMatch(/1 waiting for you/);
+    expect(bodyText(), 'the prose answer was only self-marked').toMatch(/1 waiting for you to mark/);
   });
 
   it('appears under the practice filter and not under exams', async () => {
@@ -194,6 +231,36 @@ describe('StudentAnswers · practice runs', () => {
     await user.click(screen.getByRole('button', { name: 'exams' }));
     expect(screen.getByText('Nothing recorded yet.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'practice' }));
-    expect(screen.getByText('Name two countries that border Uganda.')).toBeTruthy();
+    expect(screen.getByText('Q1. Name two countries that border Uganda.')).toBeTruthy();
+  });
+});
+
+
+describe('StudentAnswers · a multiple-choice answer shown as words', () => {
+  beforeEach(() => { document.body.innerHTML = ''; EVENTS = [MORNING_ROW]; });
+
+  it('turns the letter they tapped into the option they chose', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    /* the bare letter is useless to read — the words are what the teacher wants */
+    expect(screen.getByText(
+      'A. When countries in the same region work together to achieve common goals')).toBeTruthy();
+    const bare = screen.queryAllByText('A');
+    expect(bare, 'the letter must never appear on its own').toHaveLength(0);
+  });
+
+  it('shows the two he left blank as blank, not as wrong answers', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+    expect(screen.getAllByText('left blank — they wrote nothing here')).toHaveLength(2);
+    expect(bodyText()).toMatch(/2 left blank/);
+  });
+
+  it('still names the question above what they wrote', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+    expect(screen.getByText('Q1. What is meant by “Regional cooperation”?')).toBeTruthy();
+    expect(screen.getByText('Q2. What is meant by “Trade”?')).toBeTruthy();
   });
 });

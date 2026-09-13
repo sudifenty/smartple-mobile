@@ -11,6 +11,10 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.tsx'],
     globals: false,
+    /* the question banks are 1.7 MB + 684 KB of JSON; loading both in one run
+       starved the default 5 s and made a good test fail at random */
+    testTimeout: 30000,
+    hookTimeout: 30000,
     setupFiles: ['./src/test/setup.ts']
   }
 });
