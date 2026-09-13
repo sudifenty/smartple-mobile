@@ -25,6 +25,14 @@ export type Box = {
 export type Draft = {
   q: string; options: string[]; answer: string;
   kind: 'mcq' | 'short'; marks: number;
+  /* Set when this wording came from the notes' own REVISION QUESTIONS block
+     rather than being typed here. Written by RevisionPicker, kept in the saved
+     paper so you can always see which exercises a paper was built from. */
+  is_from_revision_bank?: boolean;
+  qid?: string;      // e.g. P5_MATH_T01-Q3
+  topic?: string;    // e.g. Set Concepts
+  level?: string;    // e.g. P5
+  subject?: string;  // e.g. Mathematics
 };
 
 export type Paper =
