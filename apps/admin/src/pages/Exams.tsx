@@ -2,8 +2,9 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 /* the PDF editor carries pdf.js (~1.2 MB) — load it only when a PDF exam is opened */
 const PdfBoxEditor = lazy(() => import('../components/PdfBoxEditor'));
-/* the revision bank is ~700 KB of real questions — load it only when the panel opens */
-const RevisionPicker = lazy(() => import('../components/RevisionPicker'));
+/* the question banks are ~1.7 MB + ~700 KB of real questions — the panel
+   fetches one bank at a time, and only when it is opened */
+const QuestionBank = lazy(() => import('../components/QuestionBank'));
 import { Box, Draft, BUCKET, boxesOf, questionsOf } from '../lib/examTypes';
 
 /* ------------------------------------------------------------------
@@ -82,17 +83,20 @@ export default function Exams() {
   const setQ = (i: number, patch: Partial<Draft>) =>
     setQs(prev => prev.map((q, j) => j === i ? { ...q, ...patch } : q));
 
-  /* Revision exercises come in already paired with the teacher's own answer,
-     so they land as written questions ready to mark. Empty drafts (the blank
-     MCQ the form starts with) are dropped so they do not sit in the middle. */
-  const addFromBank = (drafts: Draft[], meta: { subject_code: string; topic: string; level: string }) => {
+  /* Questions arrive already answered: practice MCQs carry their options and
+     the correct letter, so they will mark themselves on the phone. Empty drafts
+     (the blank MCQ the form starts with) are dropped so they do not sit in the
+     middle of the paper. */
+  const addFromBank = (drafts: Draft[], meta: { subject_code: string; topic: string; level: string; source: string }) => {
     setKind('topic');
     setQs(prev => [...prev.filter(q => q.q.trim()), ...drafts]);
     if (meta.subject_code) setSubject(meta.subject_code);
     setShowBank(false);
-    flash(`Added ${drafts.length} revision exercise${drafts.length > 1 ? 's' : ''} from ${meta.level} ${meta.topic} — edit anything before you save.`);
+    const mcqs = drafts.filter(d => d.kind === 'mcq').length;
+    flash(`Added ${drafts.length} question${drafts.length > 1 ? 's' : ''} from ${meta.level} ${meta.topic}` +
+      (mcqs ? ` — ${mcqs} will mark themselves` : '') + `. Edit anything before you save.`);
   };
-  const fromBankCount = qs.filter(q => q.is_from_revision_bank && q.q.trim()).length;
+  const fromBankCount = qs.filter(q => (q.is_from_revision_bank || q.is_from_practice_bank) && q.q.trim()).length;
 
   const uploadPdf = async (f: File) => {
     setBusy(true);
@@ -122,16 +126,15 @@ export default function Exams() {
       if (!clean.length) return alert('Add at least one question.');
       const bad = clean.find(q => q.kind === 'mcq' && q.options.filter(o => o.trim()).length < 2);
       if (bad) return alert('Every multiple-choice question needs at least two options.');
+      /* provenance travels with the question, whichever bank it came from */
+      const prov = (q: Draft) => (q.is_from_revision_bank || q.is_from_practice_bank)
+        ? { ...(q.is_from_revision_bank ? { is_from_revision_bank: true } : { is_from_practice_bank: true }),
+            qid: q.qid, topic: q.topic, subtopic: q.subtopic, level: q.level, subject: q.subject,
+            ...(q.explanation ? { explanation: q.explanation } : {}) }
+        : {};
       paper = { kind: 'topic', questions: clean.map(q => q.kind === 'mcq'
-        /* an MCQ built from a revision question keeps a pointer to where its
-           wording came from, but does not claim the whole item is from the bank
-           — the options and the answer key are yours */
-        ? { ...q, options: q.options.filter(o => o.trim()), is_from_revision_bank: false,
-            ...(q.qid ? { from_qid: q.qid, from_topic: q.topic } : {}) }
-        : { q: q.q, options: [], answer: q.answer, kind: 'short', marks: Number(q.marks) || 1,
-            ...(q.is_from_revision_bank
-              ? { is_from_revision_bank: true, qid: q.qid, topic: q.topic, level: q.level, subject: q.subject }
-              : {}) }) };
+        ? { ...q, options: q.options.filter(o => o.trim()), ...prov(q) }
+        : { q: q.q, options: [], answer: q.answer, kind: 'short', marks: Number(q.marks) || 1, ...prov(q) }) };
     }
     const marks = kind === 'pdf' ? boxes.reduce((a, b) => a + (Number(b.marks) || 0), 0) : totalMarks;
     const payload = { title: title.trim(), subject, duration_minutes: Number(duration) || 10, questions: paper };
@@ -139,7 +142,7 @@ export default function Exams() {
       .select('*');
     if (error) return alert(`Save FAILED — nothing was stored.\n\n${error.message}`);
     flash(`Saved "${title.trim()}" · ${kind === 'pdf' ? `${boxes.length} answer boxes` : `${paper.questions.length} questions`}` +
-      (kind === 'topic' && fromBankCount ? ` (${fromBankCount} from the revision bank)` : '') + ` · ${marks} marks`);
+      (kind === 'topic' && fromBankCount ? ` (${fromBankCount} from the question bank)` : '') + ` · ${marks} marks`);
     setTitle(''); setQs([mcq()]); setPdfPath(null); setBoxes([]);
     await reload();
     if (data && data[0]) { setExamId(data[0].id); setTab('assign'); }
@@ -235,10 +238,10 @@ export default function Exams() {
                   className="text-xs px-2 py-1 rounded bg-white border">
                   {q.kind === 'mcq' ? 'multiple choice' : 'written answer'}
                 </button>
-                {q.is_from_revision_bank && (
-                  <span title={`Lifted from the notes: ${q.level} ${q.topic} · ${q.qid}`}
+                {(q.is_from_revision_bank || q.is_from_practice_bank) && (
+                  <span title={`From the ${q.is_from_revision_bank ? 'notes' : "student app's practice bank"}: ${q.level} ${q.topic}${q.subtopic ? ' · ' + q.subtopic : ''} · ${q.qid}`}
                     className="text-[11px] bg-emerald-100 text-emerald-800 rounded-full px-2 py-0.5 whitespace-nowrap">
-                    from the notes · {q.qid}
+                    from the {q.is_from_revision_bank ? 'notes' : 'app'} · {q.qid}
                   </span>
                 )}
                 <label className="text-xs text-slate-500 ml-auto">marks
@@ -264,22 +267,22 @@ export default function Exams() {
           ))}
 
           {kind === 'topic' && showBank && (
-            <Suspense fallback={<div className="text-sm text-slate-500 p-3">loading the revision bank…</div>}>
-              <RevisionPicker preferSubject={subject} onClose={() => setShowBank(false)} onAdd={addFromBank} />
+            <Suspense fallback={<div className="text-sm text-slate-500 p-3">loading the question bank…</div>}>
+              <QuestionBank preferSubject={subject} onClose={() => setShowBank(false)} onAdd={addFromBank} />
             </Suspense>
           )}
 
           <div className="flex gap-2 flex-wrap items-center">
             <button onClick={() => setShowBank(v => !v)}
               className={`px-3 py-2 rounded-lg text-sm font-bold border ${showBank ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-50 text-emerald-800 border-emerald-300'}`}>
-              {showBank ? 'close revision exercises' : 'Use Revision Exercises'}
+              {showBank ? 'close the question bank' : 'Pick from the question bank'}
             </button>
             <button onClick={() => setQs(p => [...p, mcq()])} className="btn-soft text-sm px-3 py-2 rounded-lg bg-slate-100">+ multiple choice</button>
             <button onClick={() => setQs(p => [...p, written()])} className="btn-soft text-sm px-3 py-2 rounded-lg bg-slate-100">+ written question</button>
             <span className="text-sm text-slate-500">{kind === 'pdf'
               ? `${boxes.length} answer boxes · ${boxes.reduce((a, b) => a + (Number(b.marks) || 0), 0)} marks`
               : `${qs.filter(q => q.q.trim()).length} questions · ${totalMarks} marks` +
-                (fromBankCount ? ` · ${fromBankCount} from the notes` : '')}</span>
+                (fromBankCount ? ` · ${fromBankCount} from the question bank` : '')}</span>
             <button onClick={saveExam}
               className="ml-auto px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold">Save exam</button>
           </div>

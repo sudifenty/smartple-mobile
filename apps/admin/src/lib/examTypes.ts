@@ -25,14 +25,18 @@ export type Box = {
 export type Draft = {
   q: string; options: string[]; answer: string;
   kind: 'mcq' | 'short'; marks: number;
-  /* Set when this wording came from the notes' own REVISION QUESTIONS block
-     rather than being typed here. Written by RevisionPicker, kept in the saved
-     paper so you can always see which exercises a paper was built from. */
-  is_from_revision_bank?: boolean;
-  qid?: string;      // e.g. P5_MATH_T01-Q3
-  topic?: string;    // e.g. Set Concepts
-  level?: string;    // e.g. P5
-  subject?: string;  // e.g. Mathematics
+  /* Which bank this wording came from, if any. Written by QuestionBank and kept
+     in the saved paper so you can always see where a question came from — and
+     so nothing here is ever mistaken for something the admin invented. */
+  is_from_revision_bank?: boolean;   // ple-app/data/notes   (end-of-topic exercises)
+  is_from_practice_bank?: boolean;   // ple-app/data/practice (the app's own questions)
+  qid?: string;      // e.g. P6_SST_001 or P5_MATH_T01-Q3
+  topic?: string;    // e.g. East Africa
+  subtopic?: string; // e.g. Uganda's neighbours
+  level?: string;    // e.g. P6
+  subject?: string;  // e.g. Social Studies
+  difficulty?: string;
+  explanation?: string;
 };
 
 export type Paper =

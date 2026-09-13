@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "bank": "node tools/extractRevisionBank.mjs",
+    "bank": "node tools/extractPracticeBank.mjs && node tools/extractRevisionBank.mjs",
     "test": "node --test tools/",
     "test:ui": "vitest run",
     "test:all": "npm run test && npm run test:ui"
