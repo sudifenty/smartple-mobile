@@ -29,36 +29,68 @@ export type Evt = {
 };
 
 export function toEvt(r: any): Evt | null {
-  const uid = pick(r, ['user_id', 'student_id', 'profile_id', 'user']);
-  const at = pick(r, ['created_at', 'timestamp', 'at', 'time']);
-  if (!uid || !at) return null;
-  const rawCorrect = pick(r, ['is_correct', 'correct']);
-  const result = pick(r, ['result', 'outcome']);
-  const correct = typeof rawCorrect === 'boolean' ? rawCorrect
-    : result === 'correct' ? true
-    : (result === 'incorrect' || result === 'wrong') ? false : null;
-  const etype = pick(r, ['event_type', 'type', 'action']);
-  const qid = pick(r, ['question_id', 'qid']);
-  const secs = pick(r, ['time_spent_seconds', 'seconds', 'duration_seconds', 'duration', 'time_spent']);
-  return {
-    uid: String(uid),
-    qid: qid !== undefined ? String(qid) : null,
-    subject: String(pick(r, ['subject', 'subject_name']) ?? ''),
-    topic: String(pick(r, ['topic', 'topic_name', 'title', 'activity']) ?? etype ?? 'activity'),
-    subtopic: pick(r, ['subtopic', 'sub_topic']) != null ? String(pick(r, ['subtopic', 'sub_topic'])) : null,
-    tier: pick(r, ['tier', 'level', 'difficulty']) ?? null,
-    correct,
-    skipped: pick(r, ['skipped']) === true || etype === 'skipped' || etype === 'skip',
-    seconds: secs !== undefined && secs !== null && !isNaN(Number(secs)) ? Number(secs) : null,
-    type: etype !== undefined && etype !== null ? String(etype) : null,
-    at: String(at)
-  };
+  const evts = toEvts(r);
+  return evts[0] ?? null;
 }
 
-/** Newest-first normalized events. Client-side sort (column names untrusted). */
+/**
+ * The live rows keep their payload in a `details` JSONB column — subject, topic,
+ * correct and so on are in there, not in top-level columns. Reading only the top
+ * level (as this file used to) made every attempt look blank, so the progress
+ * heatmap said "No attempts yet" for students who had answered questions.
+ *
+ * One `exam_submitted` row carries the WHOLE paper, so it expands into one Evt
+ * per question — that is what makes per-topic averages possible at all.
+ */
+export function toEvts(r: any): Evt[] {
+  const uid = pick(r, ['user_id', 'student_id', 'profile_id', 'user']);
+  const at = pick(r, ['created_at', 'timestamp', 'at', 'time']);
+  if (!uid || !at) return [];
+  const d = r?.details && typeof r.details === 'object' ? r.details : {};
+  const src = { ...d, ...r };                    // details first; real columns win
+  const etype = String(pick(src, ['event_type', 'type', 'action']) ?? '');
+
+  const base = (over: Partial<Evt>): Evt => ({
+    uid: String(uid),
+    qid: pick(src, ['question_id', 'qid']) != null ? String(pick(src, ['question_id', 'qid'])) : null,
+    subject: String(pick(src, ['subject', 'subject_name']) ?? ''),
+    topic: String(pick(src, ['topic', 'topic_name', 'title', 'activity']) ?? etype ?? 'activity'),
+    subtopic: pick(src, ['subtopic', 'sub_topic']) != null ? String(pick(src, ['subtopic', 'sub_topic'])) : null,
+    tier: pick(src, ['tier', 'level', 'difficulty']) ?? null,
+    correct: null,
+    skipped: pick(src, ['skipped']) === true || etype === 'skipped' || etype === 'skip',
+    seconds: (() => {
+      const s = pick(src, ['time_spent_seconds', 'seconds', 'duration_seconds', 'duration', 'time_spent']);
+      return s !== undefined && s !== null && !isNaN(Number(s)) ? Number(s) : null;
+    })(),
+    type: etype || null,
+    at: String(at),
+    ...over
+  });
+
+  const correctOf = (raw: any, result: any): boolean | null =>
+    typeof raw === 'boolean' ? raw
+      : result === 'correct' ? true
+      : (result === 'incorrect' || result === 'wrong') ? false : null;
+
+  if (etype === 'exam_submitted' && Array.isArray(d.answers)) {
+    const title = String(d.title ?? 'exam');
+    return d.answers.map((a: any, i: number) => base({
+      topic: title,
+      qid: a?.qid != null ? String(a.qid) : null,
+      correct: correctOf(a?.ok, a?.result),
+      type: `${etype}#${i + 1}`
+    }));
+  }
+
+  return [base({ correct: correctOf(pick(src, ['is_correct', 'correct']), pick(src, ['result', 'outcome'])) })];
+}
+
+/** Newest-first normalized events. Client-side sort (column names untrusted).
+ *  One row can expand to several Evt (an exam paper holds many answers). */
 export async function fetchEvents(limit = 1500): Promise<Evt[]> {
   const { data } = await supabase.from('learning_events').select('*').limit(limit);
-  const evts = ((data as any[]) || []).map(toEvt).filter(Boolean) as Evt[];
+  const evts = ((data as any[]) || []).flatMap(toEvts);
   evts.sort((a, b) => (a.at < b.at ? 1 : -1));
   return evts;
 }
