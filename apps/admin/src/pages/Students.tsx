@@ -13,7 +13,9 @@ export default function Students() {
   const [sel, setSel] = useState<Profile | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [skips, setSkips] = useState<Skip[]>([]);
-  const [view, setView] = useState<'progress' | 'answers' | 'student'>('progress');
+  /* Answers first: the owner's standing requirement is to read what a learner
+     actually wrote. Progress is the scoreboard he keeps landing on by mistake. */
+  const [view, setView] = useState<'progress' | 'answers' | 'student'>('answers');
 
   useEffect(() => {
     supabase.from('smartple_profiles').select('*').eq('role', 'student')
@@ -25,7 +27,10 @@ export default function Students() {
 
   const pick = async (s: Profile) => {
     setSel(s);
-    setView('progress');
+    /* Tapping a student must land on what they WROTE. This used to force
+       'progress' — the red/amber scoreboard — which is why the answers page
+       was never seen even though it existed. */
+    setView('answers');
     // weakest subtopics first (heatmap source) — from learning_events
     const attempts = eventsFor(await fetchEvents(), s.user_id);
     const acc: Record<string, Row> = {};
@@ -65,15 +70,15 @@ export default function Students() {
         </div>
       </div>
       <div>
-        {!sel && <div className="card text-slate-500">Pick a student to see their progress, their answers, or their own screen.</div>}
+        {!sel && <div className="card text-slate-500">Pick a student to read what they wrote, see their progress, or open their own screen.</div>}
         {sel && (
           <>
             <div className="card mb-3">
               <h2 className="font-black">{sel.display_name} <span className="text-slate-400 font-normal">· {sel.class}</span></h2>
               <p className="text-xs text-slate-400">{sel.user_id}</p>
               <div className="flex gap-2 mt-2">
+                <button className={view === 'answers' ? 'btn-p' : 'btn-s'} onClick={() => setView('answers')}>📝 What they wrote</button>
                 <button className={view === 'progress' ? 'btn-p' : 'btn-s'} onClick={() => setView('progress')}>📊 Progress</button>
-                <button className={view === 'answers' ? 'btn-p' : 'btn-s'} onClick={() => setView('answers')}>📝 Answers</button>
                 <button className={view === 'student' ? 'btn-p' : 'btn-s'} onClick={() => setView('student')}>👁 Student View</button>
               </div>
             </div>

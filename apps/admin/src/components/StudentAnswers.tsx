@@ -105,12 +105,32 @@ function optionText(paper: any, ans: Ans): string | null {
   return opts[i] ? `${letter}. ${opts[i]}` : null;
 }
 
+/* What they wrote, in words. The phone now stores the option text itself, so
+   that wins — it survives a later edit to the paper. Older rows stored only a
+   letter, so the paper is used to turn it back into words, and the raw letter
+   is the last resort. */
+function wordsOf(q: Ans, paper: any): string {
+  return (q.given_text || '').trim()
+    || optionText(paper, q)
+    || (q.given || '').trim();
+}
+/* The first thing they actually wrote, for the collapsed row — so the list
+   already reads like writing, not like a scoreboard. */
+function firstWords(a: Attempt, papers: Record<number, any>): string {
+  const paper = a.examId != null ? papers[a.examId] : null;
+  for (const q of a.answers) { const w = wordsOf(q, paper); if (w) return w; }
+  return '';
+}
+
 export default function StudentAnswers({ student }: { student: Profile }) {
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [papers, setPapers] = useState<Record<number, any>>({});
   const [pending, setPending] = useState<{ title: string; status: string }[]>([]);
   const [filter, setFilter] = useState<'all' | 'exam' | 'practice'>('all');
   const [openOnly, setOpenOnly] = useState(false);
+  /* Each attempt is a row you press to read. The newest one opens on its own
+     so the very first thing on screen is what the learner wrote. */
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -131,7 +151,9 @@ export default function StudentAnswers({ student }: { student: Profile }) {
       for (const e of (exams as any[]) || []) byId[Number(e.id)] = e.questions;
       setPapers(byId);
       const rows = (ev as any[]) || [];
-      setAttempts(rows.map(toAttempt).filter(Boolean) as Attempt[]);
+      const built = rows.map(toAttempt).filter(Boolean) as Attempt[];
+      setAttempts(built);
+      if (built.length) setOpen({ [built[0].key]: true });
 
       /* exams handed to them that never came back — the useful kind of gap */
       const done = new Set(rows.filter(r => r.event_type === 'exam_submitted')
@@ -211,39 +233,46 @@ export default function StudentAnswers({ student }: { student: Profile }) {
         const visible = openOnly ? a.answers.filter(q => q.ok === null) : a.answers;
         if (openOnly && !visible.length) return null;
         const auto = a.answers.filter(q => q.ok !== null).length;
+        const isOpen = !!open[a.key];
+        const preview = firstWords(a, papers);
         return (
           <div key={a.key} className="card">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600">
-                {a.source === 'exam' ? 'exam' : 'practice'}
-              </span>
-              <b className="text-sm">{a.title}</b>
-              <span className="text-xs text-slate-400">{when(a.at)}</span>
-              {a.score != null && (
-                <span className="text-sm font-bold text-indigo-700">{a.score}%</span>
-              )}
-              {a.score != null && (
-                <span className="text-[11px] text-slate-400">
-                  {a.source === 'practice'
-                    ? 'marked on the phone — prose answers were marked by the learner'
-                    : a.auto ? 'marked automatically' : 'auto-marked part only — written answers still need you'}
+            {/* one row per attempt: the topic or paper, when, and how much they
+                wrote. Pressing it opens what they actually wrote. */}
+            <button onClick={() => setOpen(o => ({ ...o, [a.key]: !o[a.key] }))}
+              className="w-full text-left">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600">
+                  {a.source === 'exam' ? 'exam' : 'practice'}
                 </span>
+                <b className="text-sm">{a.title}</b>
+                <span className="text-xs text-slate-400">{when(a.at)}</span>
+                {a.subject || a.topic
+                  ? <span className="text-[11px] text-slate-400">{[a.subject, a.topic].filter(Boolean).join(' · ')}</span>
+                  : null}
+                <span className="ml-auto text-xs text-slate-400">{a.answers.length} answers</span>
+                <span className="text-xs font-bold text-indigo-600 whitespace-nowrap">
+                  {isOpen ? '▾ hide' : '▸ read what they wrote'}
+                </span>
+              </div>
+              {!isOpen && (
+                <div className="mt-1 text-xs text-slate-500 italic truncate">
+                  {preview ? `“${preview.length > 110 ? preview.slice(0, 110) + '…' : preview}”`
+                           : 'they left everything blank'}
+                </div>
               )}
-              <span className="ml-auto text-xs text-slate-400">
-                {a.answers.length} answers{auto ? ` · ${auto} marked themselves` : ''}
-              </span>
-            </div>
+            </button>
 
-            <div className="mt-2 space-y-2">
+            {isOpen && <div className="mt-2 space-y-2">
+              <div className="text-[11px] text-slate-400">
+                {a.score != null && <><span>{a.score}%</span> · </>}
+                {a.source === 'practice'
+                  ? 'marked on the phone — prose answers were marked by the learner'
+                  : a.auto ? 'marked automatically' : 'auto-marked part only — written answers still need you'}
+                {auto ? ` · ${auto} of ${a.answers.length} marked themselves` : ''}
+              </div>
               {visible.map((q, i) => {
-                /* What they wrote, in words. The phone now stores the option
-                   text itself, so that wins — it survives a later edit to the
-                   paper. Older rows only stored a letter, so the paper is used
-                   to turn it back into words, and the raw letter is the last
-                   resort. */
-                const words = (q.given_text || '').trim()
-                  || optionText(a.examId != null ? papers[a.examId] : null, q)
-                  || (q.given || '').trim();
+                const words = wordsOf(q, a.examId != null ? papers[a.examId] : null);
                 const model = (q.answer_text || '').trim() || (q.answer || '').trim();
                 return (
                 <div key={i} className="border rounded-lg p-2 bg-white">
@@ -272,7 +301,7 @@ export default function StudentAnswers({ student }: { student: Profile }) {
                 </div>
                 );
               })}
-            </div>
+            </div>}
           </div>
         );
       })}

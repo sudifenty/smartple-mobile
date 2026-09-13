@@ -156,6 +156,7 @@ describe('StudentAnswers', () => {
   it('names the paper and says the score covered only the auto-marked part', async () => {
     render(<StudentAnswers student={BOLTON} />);
     await screen.findByText(/Everything Bolton has answered/);
+    /* this is the newest attempt, so it is already open */
     expect(screen.getByText('East African Community', { selector: 'b' })).toBeTruthy();
     expect(screen.getByText('0%')).toBeTruthy();
     expect(bodyText()).toMatch(/written answers still need you/);
@@ -196,12 +197,14 @@ describe('StudentAnswers · practice runs', () => {
   beforeEach(() => { document.body.innerHTML = ''; EVENTS = [PRACTICE_ROW]; });
 
   it('shows what the learner wrote in a practice run', async () => {
+    const user = userEvent.setup();
     render(<StudentAnswers student={BOLTON} />);
     await screen.findByText(/Everything Bolton has answered/);
 
+    /* this is the newest attempt, so it is already open and showing the writing */
+    expect(screen.getByText('East Africa · Basic Practice', { selector: 'b' })).toBeTruthy();
     expect(screen.getByText('Q1. Name two countries that border Uganda.')).toBeTruthy();
     expect(bodyText()).toContain('Kenya and Rwanda');
-    expect(screen.getByText('East Africa · Basic Practice', { selector: 'b' })).toBeTruthy();
     expect(screen.getByText('75%')).toBeTruthy();
     expect(bodyText()).toMatch(/2 answers recorded/);
   });
@@ -314,5 +317,52 @@ describe('StudentAnswers · the words stored by the phone itself', () => {
     expect(screen.getAllByText('left blank — they wrote nothing here')).toHaveLength(1);
     expect(bodyText()).toMatch(/1 left blank/);
     expect(bodyText()).toMatch(/1 waiting for you to mark/);
+  });
+});
+
+
+/* The owner's requirement in one flow: tap the student, see their attempts and
+   topics, press one, read exactly what they wrote. */
+describe('StudentAnswers · press an attempt to read what they wrote', () => {
+  beforeEach(() => { document.body.innerHTML = ''; EVENTS = [MORNING_ROW, EXAM_ROW]; });
+
+  it('opens the newest attempt on its own, so the writing is the first thing seen', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    /* no clicking needed: the newest paper is already showing what he chose */
+    expect(screen.getByText(
+      'A. When countries in the same region work together to achieve common goals')).toBeTruthy();
+    expect(screen.getByText('▾ hide')).toBeTruthy();
+  });
+
+  it('lists every attempt with its topic and how much they wrote', async () => {
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    expect(screen.getByText('Morning paper', { selector: 'b' })).toBeTruthy();
+    expect(screen.getByText('East African Community', { selector: 'b' })).toBeTruthy();
+    expect(screen.getAllByText('▸ read what they wrote').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('pressing a closed attempt reveals the questions underneath', async () => {
+    const user = userEvent.setup();
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    /* closed: the question list is not on screen yet */
+    expect(screen.queryByText(/what is East African Community/i)).toBeNull();
+    await user.click(screen.getByText('East African Community', { selector: 'b' }));
+    expect(screen.getByText('Q1. what is East African Community')).toBeTruthy();
+  });
+
+  it('pressing the open attempt again puts it away', async () => {
+    const user = userEvent.setup();
+    render(<StudentAnswers student={BOLTON} />);
+    await screen.findByText(/Everything Bolton has answered/);
+
+    await user.click(screen.getByText('Morning paper', { selector: 'b' }));
+    expect(screen.queryByText(
+      'A. When countries in the same region work together to achieve common goals')).toBeNull();
   });
 });
