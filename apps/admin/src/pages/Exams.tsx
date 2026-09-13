@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { supabase, Profile } from '../lib/supabase';
+/* the PDF editor carries pdf.js (~1.2 MB) — load it only when a PDF exam is opened */
+const PdfBoxEditor = lazy(() => import('../components/PdfBoxEditor'));
+import { Box, Draft, BUCKET, boxesOf, questionsOf } from '../lib/examTypes';
 
 /* ------------------------------------------------------------------
    Exams — build one, lock it onto students, read the results.
@@ -13,14 +16,15 @@ import { supabase, Profile } from '../lib/supabase';
    app locks around it — within seconds of pressing ASSIGN & LOCK.
 ------------------------------------------------------------------ */
 
-type Draft = { q: string; options: string[]; answer: string; kind: 'mcq' | 'short'; marks: number };
 type Exam = { id: number; title: string; subject: string | null; duration_minutes: number | null; questions: any; created_at: string };
 type Asg = { id: number; exam_id: number; user_id: string; status: string; score: number | null; created_at: string };
 type Sub = { id: string; user_id: string; details: any; created_at: string };
 
 const mcq = (): Draft => ({ q: '', options: ['', '', '', ''], answer: 'A', kind: 'mcq', marks: 1 });
 const written = (): Draft => ({ q: '', options: [], answer: '', kind: 'short', marks: 2 });
-const qsOf = (e: Exam | null): Draft[] => (e && Array.isArray(e.questions) ? e.questions : []);
+const qsOf = (e: Exam | null): Draft[] => (e ? questionsOf(e.questions) : []);
+const isPdf = (e: Exam | null) => !!e && e.questions?.kind === 'pdf';
+const boxesOfExam = (e: Exam | null): Box[] => (e ? boxesOf(e.questions) : []);
 const letters = ['A', 'B', 'C', 'D'];
 
 export default function Exams() {
@@ -33,10 +37,14 @@ export default function Exams() {
   const [msg, setMsg] = useState<string | null>(null);
 
   // create form
+  const [kind, setKind] = useState<'topic' | 'pdf'>('topic');
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('SST');
   const [duration, setDuration] = useState(10);
   const [qs, setQs] = useState<Draft[]>([mcq()]);
+  const [pdfPath, setPdfPath] = useState<string | null>(null);
+  const [boxes, setBoxes] = useState<Box[]>([]);
+  const [busy, setBusy] = useState(false);
 
   // assign form
   const [examId, setExamId] = useState<number | null>(null);
@@ -71,23 +79,45 @@ export default function Exams() {
   const setQ = (i: number, patch: Partial<Draft>) =>
     setQs(prev => prev.map((q, j) => j === i ? { ...q, ...patch } : q));
 
+  const uploadPdf = async (f: File) => {
+    setBusy(true);
+    const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+    const { error } = await supabase.storage.from(BUCKET)
+      .upload(path, f, { contentType: 'application/pdf', upsert: false });
+    setBusy(false);
+    if (error) return alert(`Upload FAILED — nothing was stored.\n\n${error.message}\n\n` +
+      `If the bucket does not exist yet, run the storage SQL from the assistant in the Supabase SQL editor, then try again.`);
+    setPdfPath(path);
+    flash(`Uploaded ${f.name} — now drag answer boxes onto it.`);
+  };
+
   const saveExam = async () => {
     if (!title.trim()) return alert('Give the exam a title.');
-    const clean = qs.filter(q => q.q.trim());
-    if (!clean.length) return alert('Add at least one question.');
-    const bad = clean.find(q => q.kind === 'mcq' && q.options.filter(o => o.trim()).length < 2);
-    if (bad) return alert('Every multiple-choice question needs at least two options.');
-    const payload = {
-      title: title.trim(), subject, duration_minutes: Number(duration) || 10,
-      questions: clean.map(q => q.kind === 'mcq'
+    let paper: any;
+    if (kind === 'pdf') {
+      if (!pdfPath) return alert('Upload the PDF first.');
+      if (!boxes.length) return alert('Place at least one answer box on the PDF.');
+      const badBox = boxes.find(b => b.type === 'mcq' && (b.options || []).filter(o => (o || '').trim()).length < 2);
+      if (badBox) return alert(`Box Q${badBox.n}: a multiple-choice box needs at least two options.`);
+      paper = { kind: 'pdf', pdf_path: pdfPath, boxes: boxes.map(b => ({
+        ...b, options: b.type === 'mcq' ? (b.options || []).filter(o => (o || '').trim()) : undefined })) };
+    } else {
+      const clean = qs.filter(q => q.q.trim());
+      if (!clean.length) return alert('Add at least one question.');
+      const bad = clean.find(q => q.kind === 'mcq' && q.options.filter(o => o.trim()).length < 2);
+      if (bad) return alert('Every multiple-choice question needs at least two options.');
+      paper = { kind: 'topic', questions: clean.map(q => q.kind === 'mcq'
         ? { ...q, options: q.options.filter(o => o.trim()) }
-        : { q: q.q, options: [], answer: q.answer, kind: 'short', marks: Number(q.marks) || 1 })
-    };
+        : { q: q.q, options: [], answer: q.answer, kind: 'short', marks: Number(q.marks) || 1 }) };
+    }
+    const marks = kind === 'pdf' ? boxes.reduce((a, b) => a + (Number(b.marks) || 0), 0) : totalMarks;
+    const payload = { title: title.trim(), subject, duration_minutes: Number(duration) || 10, questions: paper };
     const { data, error } = await supabase.from('smartple_exams').insert(payload)
       .select('*');
     if (error) return alert(`Save FAILED — nothing was stored.\n\n${error.message}`);
-    flash(`Saved "${title.trim()}" · ${clean.length} questions · ${totalMarks} marks`);
-    setTitle(''); setQs([mcq()]);
+    flash(`Saved "${title.trim()}" · ${kind === 'pdf' ? `${boxes.length} answer boxes` : `${paper.questions.length} questions`} · ${marks} marks`);
+    setTitle(''); setQs([mcq()]); setPdfPath(null); setBoxes([]);
     await reload();
     if (data && data[0]) { setExamId(data[0].id); setTab('assign'); }
   };
@@ -105,10 +135,10 @@ export default function Exams() {
   };
 
   const release = async (a: Asg) => {
-    if (!confirm(`Release ${name(a.user_id)} from "${examTitle(a.exam_id)}"?`)) return;
+    if (!confirm(`Hide "${examTitle(a.exam_id)}" from ${name(a.user_id)}? The exam disappears from their phone within 15 seconds.`)) return;
     const { error } = await supabase.from('smartple_exam_assignments').delete().eq('id', a.id);
     if (error) return alert(`Release FAILED.\n\n${error.message}`);
-    flash('Released — the student is free again.');
+    flash('Hidden — the exam is off that phone within 15 seconds.');
     await reload();
   };
 
@@ -151,7 +181,30 @@ export default function Exams() {
             </label>
           </div>
 
-          {qs.map((q, i) => (
+          <div className="flex gap-2 items-center">
+            <button onClick={() => setKind('topic')}
+              className={`px-3 py-2 rounded-xl text-sm font-bold border ${kind === 'topic' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}>
+              From questions</button>
+            <button onClick={() => setKind('pdf')}
+              className={`px-3 py-2 rounded-xl text-sm font-bold border ${kind === 'pdf' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}>
+              From a PDF paper</button>
+            <span className="text-xs text-slate-400 ml-auto">an exam is invisible on every phone until you assign it</span>
+          </div>
+
+          {kind === 'pdf' && (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm border border-dashed rounded-xl p-3 cursor-pointer bg-slate-50">
+                <input type="file" accept="application/pdf" className="text-xs" disabled={busy}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadPdf(f); }} />
+                <span className="text-slate-500">{busy ? 'uploading…' : pdfPath ? `uploaded: ${pdfPath.split('-').pop()}` : 'choose a UNEB paper (PDF)'}</span>
+              </label>
+              {pdfPath && <Suspense fallback={<div className="text-sm text-slate-500 p-3">loading the PDF editor…</div>}>
+                <PdfBoxEditor path={pdfPath} boxes={boxes} onChange={setBoxes} />
+              </Suspense>}
+            </div>
+          )}
+
+          {kind === 'topic' && qs.map((q, i) => (
             <div key={i} className="border rounded-xl p-3 space-y-2 bg-slate-50">
               <div className="flex items-center gap-2">
                 <b className="text-sm">Q{i + 1}</b>
@@ -184,11 +237,13 @@ export default function Exams() {
           <div className="flex gap-2 flex-wrap items-center">
             <button onClick={() => setQs(p => [...p, mcq()])} className="btn-soft text-sm px-3 py-2 rounded-lg bg-slate-100">+ multiple choice</button>
             <button onClick={() => setQs(p => [...p, written()])} className="btn-soft text-sm px-3 py-2 rounded-lg bg-slate-100">+ written question</button>
-            <span className="text-sm text-slate-500">{qs.filter(q => q.q.trim()).length} questions · {totalMarks} marks</span>
+            <span className="text-sm text-slate-500">{kind === 'pdf'
+              ? `${boxes.length} answer boxes · ${boxes.reduce((a, b) => a + (Number(b.marks) || 0), 0)} marks`
+              : `${qs.filter(q => q.q.trim()).length} questions · ${totalMarks} marks`}</span>
             <button onClick={saveExam}
               className="ml-auto px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold">Save exam</button>
           </div>
-          <p className="text-xs text-slate-400">Multiple choice is marked automatically on the phone. Written answers are sent to you for marking.</p>
+          <p className="text-xs text-slate-400">Multiple choice is marked automatically on the phone. Written answers — including anything typed into a PDF box — are sent to you for marking.</p>
         </div>
       )}
 
@@ -196,7 +251,16 @@ export default function Exams() {
       {tab === 'assign' && (
         <div className="grid md:grid-cols-[1fr,320px] gap-4">
           <div className="card space-y-2">
-            <b className="text-sm">Tick the students who must sit this exam</b>
+            <div className="flex items-center gap-2 flex-wrap">
+              <b className="text-sm">Who can see this exam?</b>
+              <button onClick={() => setChosen(new Set(students.map(s => s.user_id)))}
+                className="text-xs px-2 py-1 rounded bg-slate-100">all students</button>
+              {['P4', 'P5', 'P6', 'P7'].map(c => (
+                <button key={c} onClick={() => setChosen(new Set(students.filter(s => s.class === c).map(s => s.user_id)))}
+                  className="text-xs px-2 py-1 rounded bg-slate-100">{c}</button>
+              ))}
+              <button onClick={() => setChosen(new Set())} className="text-xs px-2 py-1 rounded bg-slate-100">none</button>
+            </div>
             {students.map(s => (
               <label key={s.user_id} className="flex items-center gap-2 text-sm py-1">
                 <input type="checkbox" checked={chosen.has(s.user_id)}
@@ -213,13 +277,18 @@ export default function Exams() {
           <div className="card space-y-3">
             <b className="text-sm">The exam</b>
             <select className="input" value={examId ?? ''} onChange={e => setExamId(Number(e.target.value))}>
-              {exams.map(e => <option key={e.id} value={e.id}>{e.title} ({qsOf(e).length} q)</option>)}
+              {exams.map(e => <option key={e.id} value={e.id}>
+                {e.title} ({isPdf(e) ? `PDF · ${boxesOfExam(e).length} boxes` : `${qsOf(e).length} q`})
+              </option>)}
             </select>
             <button onClick={assign}
               className="w-full px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-bold">
-              Assign &amp; lock ({chosen.size})
+              Make visible &amp; lock ({chosen.size})
             </button>
-            <p className="text-xs text-slate-400">Their app opens straight into the exam — no back, no home — until they submit or the time runs out.</p>
+            <p className="text-xs text-slate-400">
+              Nobody sees this exam until you press this. It then appears on those phones within 15 seconds and
+              the app opens straight into it — no back, no home — until they submit or the time runs out.
+              Unassign from the Results tab to hide it again instantly.</p>
           </div>
         </div>
       )}
@@ -238,7 +307,7 @@ export default function Exams() {
                   {badge(a.status)}
                   {a.score != null && <span className="text-sm font-bold text-green-700">{a.score}%</span>}
                   {a.status !== 'completed' &&
-                    <button onClick={() => release(a)} className="ml-auto text-xs text-red-500 underline">release</button>}
+                    <button onClick={() => release(a)} className="ml-auto text-xs text-red-500 underline">unassign / hide</button>}
                   {answers.length > 0 &&
                     <button onClick={() => setOpen(open === a.id ? null : a.id)}
                       className="text-xs text-indigo-600 underline">{open === a.id ? 'hide answers' : 'review answers'}</button>}
