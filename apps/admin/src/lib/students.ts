@@ -130,6 +130,29 @@ export async function reserveStudentId(): Promise<string> {
 }
 
 /**
+ * Put the admin's own session back after signUp() replaced it.
+ *
+ * The refresh token is used as well as the access token so that a token which
+ * expired part-way through a slow registration is renewed rather than leaving
+ * the admin silently signed out.
+ */
+async function restoreAdminSession(session: {
+  access_token: string;
+  refresh_token: string;
+} | null): Promise<void> {
+  if (!session) {
+    /* There was no admin session to lose, so do not leave the new student
+       signed into the dashboard. */
+    await supabase.auth.signOut();
+    return;
+  }
+  await supabase.auth.setSession({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token
+  });
+}
+
+/**
  * Register a student end to end: reserve an ID, create the login, write the
  * profile, then confirm the address so they can sign in straight away.
  *
@@ -141,11 +164,22 @@ export async function registerStudent(input: RegisterInput): Promise<RegisterRes
   const email = loginFor(studentId);
   const password = makePassword();
 
+  /* signUp() SIGNS THE NEW STUDENT IN and replaces our session. Everything
+     below — the profile write, the photo upload and the confirmation — goes
+     through functions guarded by is_admin(), so the admin session has to be
+     put back first or every one of them refuses with "admin only". Captured
+     before signUp because afterwards it is already gone. */
+  const { data: current } = await supabase.auth.getSession();
+  const adminSession = current.session;
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: { data: { full_name: input.full_name, role: 'student' } }
   });
+  /* Restored whatever happened: signUp swaps the session on success and leaves
+     it alone on failure, and restoring an unchanged session is harmless. */
+  await restoreAdminSession(adminSession);
   if (error) throw new Error(`Could not create the login — ${error.message}`);
   const user = data.user;
   if (!user) throw new Error('The login was not created. Check that this email is not already registered.');
