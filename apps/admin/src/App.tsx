@@ -4,6 +4,7 @@ import { useTheme } from './lib/theme';
 import Login from './pages/Login';
 import Students from './pages/Students';
 import Register from './pages/Register';
+import Force from './pages/Force';
 import Live from './pages/Live';
 import Controls from './pages/Controls';
 import Cheating from './pages/Cheating';
@@ -17,6 +18,7 @@ const NAV = [
   ['register', 'Register', '➕'],
   ['live', 'Live Activity', '📡'],
   ['controls', 'Remote Control', '🎛️'],
+  ['force', 'Force Assign', '📌'],
   ['cheating', 'Cheating', '🚩'],
   ['usage', 'Usage', '📊'],
   ['exams', 'Exams', '📝'],
@@ -186,6 +188,7 @@ export default function App() {
         {page === 'register' && <Register />}
         {page === 'live' && <Live />}
         {page === 'controls' && <Controls />}
+        {page === 'force' && <Force />}
         {page === 'cheating' && <Cheating />}
         {page === 'usage' && <Usage />}
         {page === 'exams' && <Exams />}

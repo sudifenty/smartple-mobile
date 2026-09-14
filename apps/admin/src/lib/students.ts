@@ -223,3 +223,67 @@ export async function photoUrl(path: string | null): Promise<string | null> {
   const { data } = await supabase.storage.from('student-photos').createSignedUrl(path, 60 * 60);
   return data?.signedUrl || null;
 }
+
+/* ==========================================================================
+   Admin override / force lock
+
+   Sits on top of the learner's own study chain rather than replacing it.
+   LOCK_ONLY hides everything but the target, EXTRA only adds a task, EXAM
+   hands over a paper through the assignment the phone already watches.
+   ======================================================================== */
+
+export type ForceMode = 'LOCK_ONLY' | 'EXTRA' | 'EXAM';
+
+export const FORCE_MODES: { id: ForceMode; label: string; blurb: string }[] = [
+  { id: 'LOCK_ONLY', label: 'Lock to this',
+    blurb: 'They see only this subtopic. Everything else is hidden until you unlock it.' },
+  { id: 'EXTRA', label: 'Extra task',
+    blurb: 'Added on top of their normal work. Hides nothing.' },
+  { id: 'EXAM', label: 'Set an exam',
+    blurb: 'Opens the paper directly, bypassing the study chain.' }
+];
+
+export type ForcedRow = {
+  user_id: string; student: string | null; class: string | null;
+  force_mode: ForceMode; forced_subtopic_id: string | null;
+  forced_until: string | null; forced_topic: string | null;
+  forced_subtopic: string | null; expired: boolean;
+};
+
+export type ForceInput = {
+  user_id: string;
+  mode: ForceMode;
+  topic?: string | null;
+  subtopic?: string | null;
+  subtopic_id?: string | null;
+  exam_id?: number | null;
+  until?: string | null;   // ISO timestamp, null = no expiry
+};
+
+export async function forceAssign(i: ForceInput): Promise<void> {
+  const { error } = await supabase.rpc('admin_force_assign', {
+    p_user_id: i.user_id, p_mode: i.mode,
+    p_topic: i.topic ?? null, p_subtopic: i.subtopic ?? null,
+    p_subtopic_id: i.subtopic_id ?? null, p_exam_id: i.exam_id ?? null,
+    p_until: i.until ?? null
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function forceClear(userId: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_force_clear', { p_user_id: userId });
+  if (error) throw new Error(error.message);
+}
+
+export async function forcedStudents(): Promise<ForcedRow[]> {
+  const { data, error } = await supabase.rpc('admin_forced_students');
+  if (error) throw new Error(error.message);
+  return (data || []) as ForcedRow[];
+}
+
+export async function listExams(): Promise<{ id: number; title: string; subject: string | null }[]> {
+  const { data, error } = await supabase.from('smartple_exams')
+    .select('id,title,subject').order('id', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []) as any[];
+}
