@@ -16,6 +16,14 @@ export const supabase: SupabaseClient = createClient(URL, KEY, {
 export type Profile = {
   user_id: string; display_name: string | null; class: string | null;
   role: 'student' | 'admin'; is_paid?: boolean;
+  /* student management — all nullable, so rows created before the migration
+     still type-check and simply show as unregistered */
+  full_name?: string | null; student_id_unique?: string | null;
+  age?: number | null; guardian_name?: string | null;
+  guardian_contact?: string | null; address?: string | null;
+  photo_url?: string | null; status?: string | null;
+  subscription_start_date?: string | null; subscription_end_date?: string | null;
+  paid_until?: string | null; created_at?: string | null;
 };
 export type Assignment = {
   user_id: string; forced_class: string | null; forced_subject: string | null;

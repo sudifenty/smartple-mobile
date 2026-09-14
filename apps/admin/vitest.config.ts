@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.tsx'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     globals: false,
     /* the question banks are 1.7 MB + 684 KB of JSON; loading both in one run
        starved the default 5 s and made a good test fail at random */

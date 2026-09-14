@@ -9,9 +9,11 @@ import Usage from './pages/Usage';
 import Exams from './pages/Exams';
 import Automations from './pages/Automations';
 import Parent from './pages/Parent';
+import Register from './pages/Register';
 
 const NAV = [
   ['students', 'Students'],
+  ['register', 'Register New Student'],
   ['live', 'Live Activity'],
   ['controls', 'Remote Control'],
   ['cheating', 'Cheating'],
@@ -109,6 +111,7 @@ export default function App() {
       </header>
       <main className="p-4 max-w-6xl mx-auto">
         {page === 'students' && <Students />}
+        {page === 'register' && <Register />}
         {page === 'live' && <Live />}
         {page === 'controls' && <Controls />}
         {page === 'cheating' && <Cheating />}

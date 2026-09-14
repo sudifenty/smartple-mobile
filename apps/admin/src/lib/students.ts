@@ -1,0 +1,225 @@
+import { supabase } from './supabase';
+
+/* =============================================================================
+   Student Management — the admin app's API layer.
+
+   Every WRITE goes through a Postgres function guarded by public.is_admin(),
+   so the browser never holds a secret key and a non-admin caller is refused by
+   the database even if they call these directly. Reads use the same plain
+   selects the rest of the dashboard already uses.
+   ========================================================================== */
+
+export type StudentRow = {
+  user_id: string | null;
+  id?: string;
+  student_id_unique: string | null;
+  full_name: string | null;
+  display_name: string | null;
+  age: number | null;
+  class: string | null;
+  guardian_name: string | null;
+  guardian_contact: string | null;
+  address: string | null;
+  photo_url: string | null;
+  status: string | null;
+  subscription_start_date: string | null;
+  subscription_end_date: string | null;
+  paid_until: string | null;
+  role: string | null;
+  created_at: string | null;
+};
+
+/* ---------------------------------------------------------------- status ----
+   Derived, not trusted. The stored `status` column is a cache that the daily
+   job keeps correct, but a learner who expired at midnight must still show up
+   red before that job runs — so the app recomputes it from the end date every
+   time and only falls back to the stored value when there is no date at all. */
+
+/** Local calendar date as YYYY-MM-DD (date-only columns compare correctly). */
+export const todayISO = (d = new Date()): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** The date access actually runs out. paid_until is the older column and is
+    kept in step by the database functions, so honour whichever is set. */
+/** Anything carrying the two date columns — a full row or a Profile. */
+export type SubDates = { subscription_end_date?: string | null; paid_until?: string | null };
+
+export const endsOn = (s: SubDates): string | null =>
+  s.subscription_end_date || s.paid_until || null;
+
+export const isExpired = (s: SubDates): boolean => {
+  const end = endsOn(s);
+  if (!end) return false;              // no end date = permanent, never expires
+  return end.slice(0, 10) < todayISO();
+};
+
+export const statusOf = (s: SubDates): 'active' | 'expired' =>
+  isExpired(s) ? 'expired' : 'active';
+
+export const daysLeft = (s: SubDates): number | null => {
+  const end = endsOn(s);
+  if (!end) return null;
+  const a = new Date(end.slice(0, 10) + 'T00:00:00');
+  const b = new Date(todayISO() + 'T00:00:00');
+  return Math.round((a.getTime() - b.getTime()) / 86400000);
+};
+
+/* ------------------------------------------------------------- credentials --
+   A registered student signs in with an address derived from their Student ID,
+   so SPL-2026-0007 becomes spl20260007@smartple.app. Nothing to remember and
+   nothing to type at registration. */
+export const LOGIN_DOMAIN = 'smartple.app';
+export const loginFor = (studentId: string): string =>
+  `${studentId.toLowerCase().replace(/[^a-z0-9]/g, '')}@${LOGIN_DOMAIN}`;
+
+/* No look-alike characters (0/O, 1/l/I) — this gets read out over the phone. */
+const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const makePassword = (n = 10): string => {
+  const buf = new Uint32Array(n);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, x => ALPHABET[x % ALPHABET.length]).join('');
+};
+
+/* ------------------------------------------------------------------- reads -- */
+
+export async function refreshStatuses(): Promise<void> {
+  /* Idempotent, both directions. Safe to call on every load; if the function
+     is not there yet (migration not run) we simply carry on. */
+  await supabase.rpc('admin_refresh_statuses');
+}
+
+export async function listStudents(): Promise<StudentRow[]> {
+  const { data, error } = await supabase
+    .from('smartple_profiles')
+    .select('*')
+    .eq('role', 'student')
+    .order('full_name', { ascending: true, nullsFirst: false });
+  if (error) throw new Error(error.message);
+  return (data || []) as StudentRow[];
+}
+
+/* ------------------------------------------------------------------ writes -- */
+
+export type RegisterInput = {
+  full_name: string;
+  age: number | null;
+  klass: string | null;
+  guardian_name: string | null;
+  guardian_contact: string | null;
+  address: string | null;
+  registered_on: string | null;   // YYYY-MM-DD
+  days: number | null;            // null = no expiry
+  photo?: File | null;            // uploaded once the login exists
+};
+
+export type RegisterResult = {
+  student_id: string;
+  email: string;
+  password: string;
+  user_id: string;
+  end_date: string | null;
+  photo_error?: string;   // set only if the student saved but the photo did not
+};
+
+/** Reserve the next Student ID. Done first because the login address is
+    derived from it, and the auth user has to exist before the profile can. */
+export async function reserveStudentId(): Promise<string> {
+  const { data, error } = await supabase.rpc('admin_next_student_id');
+  if (error) throw new Error(`Could not reserve a Student ID — ${error.message}`);
+  return data as string;
+}
+
+/**
+ * Register a student end to end: reserve an ID, create the login, write the
+ * profile, then confirm the address so they can sign in straight away.
+ *
+ * The password is generated here and returned ONCE — it is never stored in
+ * plain text anywhere, so the admin has to copy it down.
+ */
+export async function registerStudent(input: RegisterInput): Promise<RegisterResult> {
+  const studentId = await reserveStudentId();
+  const email = loginFor(studentId);
+  const password = makePassword();
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: input.full_name, role: 'student' } }
+  });
+  if (error) throw new Error(`Could not create the login — ${error.message}`);
+  const user = data.user;
+  if (!user) throw new Error('The login was not created. Check that this email is not already registered.');
+
+  const { data: res, error: rpcErr } = await supabase.rpc('admin_register_student', {
+    p_user_id: user.id,
+    p_full_name: input.full_name,
+    p_age: input.age,
+    p_class: input.klass,
+    p_guardian_name: input.guardian_name,
+    p_guardian_contact: input.guardian_contact,
+    p_address: input.address,
+    /* filled in below, once the login exists and the file has been uploaded */
+    p_photo_url: null,
+    p_registered_on: input.registered_on,
+    p_days: input.days,
+    p_student_id: studentId
+  });
+  if (rpcErr) throw new Error(`Login created but the profile was not saved — ${rpcErr.message}`);
+
+  /* The photo can only be filed once the login exists, because the storage
+     path is keyed on the user id. A failure here must not lose the student —
+     they are registered either way, and the photo can be added later. */
+  let photoErr = '';
+  if (input.photo) {
+    try {
+      const path = await uploadPhoto(user.id, input.photo);
+      await supabase.rpc('admin_set_student_photo', { p_user_id: user.id, p_photo_url: path });
+    } catch (e: any) {
+      photoErr = e?.message || 'photo upload failed';
+    }
+  }
+
+  /* Without this the student would have to click a confirmation email that
+     nobody is going to send them. */
+  await supabase.rpc('admin_confirm_user', { p_user_id: user.id });
+
+  return {
+    student_id: (res as any)?.student_id || studentId,
+    email,
+    password,
+    user_id: user.id,
+    end_date: (res as any)?.end_date || null,
+    photo_error: photoErr || undefined
+  };
+}
+
+/** One call serves both buttons — an expired student coming back and an active
+    student extending early mean the same thing: start today, run N days. */
+export async function renewStudent(userId: string, days: number): Promise<{ end_date: string }> {
+  const { data, error } = await supabase.rpc('admin_renew_student', {
+    p_user_id: userId,
+    p_days: days
+  });
+  if (error) throw new Error(error.message);
+  return { end_date: (data as any)?.end_date || null };
+}
+
+/* ------------------------------------------------------------------- photo -- */
+
+export async function uploadPhoto(userId: string, file: File): Promise<string> {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${userId}.${ext === 'jpeg' ? 'jpg' : ext}`;
+  const { error } = await supabase.storage
+    .from('student-photos')
+    .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+  if (error) throw new Error(error.message);
+  /* The bucket is private, so what gets stored is the object path; photoUrl()
+     below turns it into a short-lived signed URL when the admin wants to see it. */
+  return path;
+}
+
+export async function photoUrl(path: string | null): Promise<string | null> {
+  if (!path) return null;
+  const { data } = await supabase.storage.from('student-photos').createSignedUrl(path, 60 * 60);
+  return data?.signedUrl || null;
+}
