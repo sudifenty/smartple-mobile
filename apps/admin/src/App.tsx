@@ -64,6 +64,91 @@ function ThemeToggle() {
   );
 }
 
+/**
+ * Shown when the signed-in account is not an admin.
+ *
+ * Leads with the thing that actually fixes it — signing in as the admin — and
+ * names the admin logins that exist, because the old copy sent the owner to the
+ * SQL editor for what was only a wrong login. The SQL stays available, but
+ * behind a disclosure, for the one case where it is genuinely needed: a project
+ * with no admin row at all.
+ */
+function NotAdminGate({ signedInAs }: { signedInAs: string }) {
+  const [admins, setAdmins] = useState<string[]>([]);
+  const [showSql, setShowSql] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    supabase
+      .from('smartple_profiles')
+      .select('email,display_name')
+      .eq('role', 'admin')
+      .then(({ data }: any) => {
+        if (!live) return;
+        setAdmins(
+          ((data || []) as any[])
+            .map(r => r.email || r.display_name)
+            .filter(Boolean) as string[]
+        );
+      });
+    return () => { live = false; };
+  }, []);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="card w-full max-w-md">
+        <Mark className="w-10 h-10 mb-3" />
+        <h1 className="mb-2">That is a student login</h1>
+        <p className="text-sm text-surface-muted mb-3">
+          You are signed in as <b className="text-surface-ink">{signedInAs}</b>. Student
+          logins are made for the phone app and cannot open this dashboard — nothing
+          is broken and no SQL is needed.
+        </p>
+        <p className="text-sm text-surface-muted mb-3">
+          Sign out, then sign in with the owner account:
+        </p>
+        {admins.length > 0 ? (
+          <ul className="mb-4 space-y-1">
+            {admins.map(a => (
+              <li key={a} className="text-sm font-semibold text-surface-ink break-all">
+                {a}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-surface-muted mb-4">
+            Checking for an owner account…
+          </p>
+        )}
+        <button
+          className="btn-s"
+          onClick={() => supabase.auth.signOut().then(() => window.location.reload())}
+        >
+          Sign out and use the owner login
+        </button>
+
+        <details className="mt-4">
+          <summary
+            className="text-xs text-surface-muted cursor-pointer select-none"
+            onClick={() => setShowSql(v => !v)}
+          >
+            There is no owner account in this project
+          </summary>
+          {showSql && (
+            <p className="text-xs text-surface-muted mt-2">
+              Only then is the SQL editor needed, once:{' '}
+              <code className="kbd break-all">
+                UPDATE smartple_profiles SET role='admin' WHERE user_id=(SELECT id FROM
+                auth.users WHERE email='{signedInAs}');
+              </code>
+            </p>
+          )}
+        </details>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined); // undefined = loading
   const [signedInAs, setSignedInAs] = useState<string | null>(null);
@@ -115,29 +200,7 @@ export default function App() {
 
   // HARD GATE: not admin → login only. Students never see anything.
   if (!profile || profile.role !== 'admin') {
-    if (signedInAs)
-      return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="card w-full max-w-md">
-            <Mark className="w-10 h-10 mb-3" />
-            <h1 className="mb-2">Signed in — but not an admin</h1>
-            <p className="text-sm text-surface-muted mb-3">
-              You are signed in as <b className="text-surface-ink">{signedInAs}</b>, but this
-              account has no <code className="kbd">role='admin'</code> row in{' '}
-              <b className="text-surface-ink">smartple_profiles</b> of the Supabase project this
-              dashboard is connected to (see the console for the fetched profile).
-            </p>
-            <p className="text-sm text-surface-muted mb-4">
-              Fix: run in the SQL editor —{' '}
-              <code className="kbd break-all">UPDATE smartple_profiles SET role='admin' WHERE user_id=(SELECT id FROM auth.users WHERE email='{signedInAs}');</code>{' '}
-              (sign up in this project first if you have no account here).
-            </p>
-            <button className="btn-s" onClick={() => supabase.auth.signOut().then(() => window.location.reload())}>
-              Sign out
-            </button>
-          </div>
-        </div>
-      );
+    if (signedInAs) return <NotAdminGate signedInAs={signedInAs} />;
     return <Login />;
   }
 
