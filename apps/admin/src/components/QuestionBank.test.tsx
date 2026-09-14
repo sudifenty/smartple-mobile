@@ -1,3 +1,9 @@
+import practiceBank from '../data/practiceBank.json';
+import revisionBank from '../data/revisionBank.json';
+/* Assert against the bank's own totals rather than a hard-coded figure, so the
+   tests track the corpus instead of going stale every time the notes grow. */
+const PRACTICE_N = new RegExp(practiceBank.counts.questions.toLocaleString('en-US') + ' questions');
+const REVISION_N = new RegExp(revisionBank.counts.questions.toLocaleString('en-US') + ' questions');
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -33,7 +39,7 @@ describe('QuestionBank · practice questions (the student app\'s own)', () => {
     const user = userEvent.setup();
     render(<QuestionBank onAdd={vi.fn()} onClose={vi.fn()} />);
 
-    await screen.findByText(/3,869 questions/, {}, { timeout: 20000 });
+    await screen.findByText(PRACTICE_N, {}, { timeout: 20000 });
     await user.selectOptions(sel('subject'), 'Social Studies');
     await user.selectOptions(sel('class'), 'P6');
     await pickOption(user, 'topic', /^East Africa \(8\)$/);
@@ -52,7 +58,7 @@ describe('QuestionBank · practice questions (the student app\'s own)', () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
     render(<QuestionBank onAdd={onAdd} onClose={vi.fn()} />);
-    await screen.findByText(/3,869 questions/, {}, { timeout: 20000 });
+    await screen.findByText(PRACTICE_N, {}, { timeout: 20000 });
     await user.selectOptions(sel('subject'), 'Social Studies');
     await user.selectOptions(sel('class'), 'P6');
     await pickOption(user, 'topic', /^East Africa \(8\)$/);
@@ -97,7 +103,7 @@ describe('QuestionBank · practice questions (the student app\'s own)', () => {
   it('narrows by subtopic, and by search text', async () => {
     const user = userEvent.setup();
     render(<QuestionBank onAdd={vi.fn()} onClose={vi.fn()} />);
-    await screen.findByText(/3,869 questions/, {}, { timeout: 20000 });
+    await screen.findByText(PRACTICE_N, {}, { timeout: 20000 });
     await user.selectOptions(sel('subject'), 'Social Studies');
     await user.selectOptions(sel('class'), 'P6');
     await pickOption(user, 'topic', /^East Africa \(8\)$/);
@@ -120,7 +126,7 @@ describe('QuestionBank · practice questions (the student app\'s own)', () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
     render(<QuestionBank onAdd={onAdd} onClose={vi.fn()} />);
-    await screen.findByText(/3,869 questions/, {}, { timeout: 20000 });
+    await screen.findByText(PRACTICE_N, {}, { timeout: 20000 });
     await user.selectOptions(sel('subject'), 'Social Studies');
     await user.selectOptions(sel('class'), 'P6');
     await pickOption(user, 'topic', /^East Africa \(8\)$/);
@@ -143,10 +149,10 @@ describe('QuestionBank · revision exercises (from the notes)', () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
     render(<QuestionBank onAdd={onAdd} onClose={vi.fn()} />);
-    await screen.findByText(/3,869 questions/, {}, { timeout: 20000 });
+    await screen.findByText(PRACTICE_N, {}, { timeout: 20000 });
 
     await user.click(screen.getByRole('button', { name: /Revision exercises/ }));
-    await screen.findByText(/2,116 questions/, {}, { timeout: 20000 });
+    await screen.findByText(REVISION_N, {}, { timeout: 20000 });
 
     await user.selectOptions(sel('subject'), 'Mathematics');
     await user.selectOptions(sel('class'), 'P5');

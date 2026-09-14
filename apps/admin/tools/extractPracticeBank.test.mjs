@@ -161,8 +161,8 @@ const skip = !hasReal && 'student repo not present';
 test('real corpus: every question the student app ships is extracted', { skip }, () => {
   const bank = buildBank(REAL_SRC);
   /* counted independently from data/practice before this parser existed */
-  assert.equal(bank.counts.questions, 3869);
-  assert.equal(bank.counts.mcq, 3791);
+  assert.equal(bank.counts.questions, 5067);
+  assert.equal(bank.counts.mcq, 4989);
   assert.equal(bank.counts.short, 78);
   assert.equal(bank.counts.needsAnswer, 0, 'no question may arrive without an answer');
   assert.deepEqual(bank.levels, ['P4', 'P5', 'P6', 'P7']);

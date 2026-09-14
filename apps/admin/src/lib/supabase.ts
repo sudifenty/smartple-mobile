@@ -19,7 +19,7 @@ export type Profile = {
 };
 export type Assignment = {
   user_id: string; forced_class: string | null; forced_subject: string | null;
-  forced_topic: string | null; forced_tier: number | null;
+  forced_topic: string | null; forced_subtopic: string | null; forced_tier: number | null;
   allow_notes: boolean; allow_practice_with_answers: boolean;
   allow_practice_no_answers: boolean; note: string | null;
 };

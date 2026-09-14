@@ -171,8 +171,8 @@ const hasReal = existsSync(REAL_SRC);
 test('real corpus: the expected number of real questions is extracted', { skip: !hasReal && 'notes repo not present' }, () => {
   const bank = buildBank(REAL_SRC);
   /* counted independently from the notes before the parser existed */
-  assert.equal(bank.counts.topics, 119);
-  assert.equal(bank.counts.questions, 2116);
+  assert.equal(bank.counts.topics, 120);
+  assert.equal(bank.counts.questions, 2189);
   assert.deepEqual(bank.levels, ['P4', 'P5', 'P6', 'P7']);
   assert.deepEqual(bank.subjects, ['English', 'Mathematics', 'Science', 'Social Studies']);
 });
@@ -209,7 +209,7 @@ test('real corpus: every question exists in the notes — nothing invented', { s
     assert.ok(strings.has(q.answer), `ANSWER NOT FOUND IN NOTES: ${q.qid} "${q.answer}"`);
     checked += 2;
   }
-  assert.equal(checked, 2 * 2116, 'must have provenance-checked every question and answer');
+  assert.equal(checked, 2 * 2189, 'must have provenance-checked every question and answer');
 });
 
 test('real corpus: subtopics were recovered for the numbered topics', { skip: !hasReal && 'notes repo not present' }, () => {
