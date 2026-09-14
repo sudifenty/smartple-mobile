@@ -99,13 +99,13 @@ export default function Controls() {
         <input className="input mb-2" placeholder="Search student…" value={q} onChange={e => setQ(e.target.value)} />
         {list.map(s => (
           <button key={s.user_id} onClick={() => pick(s)}
-            className={`w-full text-left px-3 py-2 rounded-lg text-sm ${sel?.user_id === s.user_id ? 'bg-indigo-50 font-bold' : 'hover:bg-slate-50'}`}>
-            {s.display_name || (s.user_id ? s.user_id.slice(0, 8) : '(no name)')} <span className="text-slate-400">· {s.class || '?'}</span>
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm ${sel?.user_id === s.user_id ? 'bg-brand-50 dark:bg-brand-900/30 font-bold' : 'hover:bg-surface-sunken'}`}>
+            {s.display_name || (s.user_id ? s.user_id.slice(0, 8) : '(no name)')} <span className="text-surface-faint">· {s.class || '?'}</span>
           </button>
         ))}
       </div>
       <div>
-        {!a && <div className="card text-slate-500">Pick a student to control their app remotely.</div>}
+        {!a && <div className="card text-surface-muted">Pick a student to control their app remotely.</div>}
         {a && sel && (
           <div className="card">
             <h2 className="font-black mb-3">{sel.display_name} — Remote Control</h2>
@@ -139,14 +139,14 @@ export default function Controls() {
               </select>
             </div>
             {lockOpen && (
-              <div className="border rounded-lg p-3 mb-3 bg-slate-50">
+              <div className="border rounded-lg p-3 mb-3 bg-surface-sunken">
                 <div className="flex items-center gap-2 mb-2">
                   <b className="text-sm">Lock {sel.display_name} into content</b>
                   <button className="ml-auto btn-s" onClick={() => setLockOpen(false)}>Close</button>
                 </div>
                 {!openTopic ? (
                   <>
-                    <p className="text-xs text-slate-500 mb-2">
+                    <p className="text-xs text-surface-muted mb-2">
                       Pick a topic. You can then lock the whole topic, or one subtopic inside it.
                     </p>
                     <div className="flex flex-wrap gap-1">
@@ -155,7 +155,7 @@ export default function Controls() {
                           onClick={() => setOpenTopic(b.topic_id || b.topic)}>{b.topic}</button>
                       ))}
                       {!topicsFor(a.forced_class, a.forced_subject).length && (
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-surface-muted">
                           No topics under this class and subject — release the class or subject lock to browse them all.
                         </span>
                       )}
@@ -174,7 +174,7 @@ export default function Controls() {
                           onClick={() => { set({ forced_topic: title, forced_subtopic: null }); setLockOpen(false); }}>
                           Lock the whole topic
                         </button>
-                        <p className="text-xs text-slate-500 mb-1">
+                        <p className="text-xs text-surface-muted mb-1">
                           Or lock one subtopic — they will see nothing else at all.
                         </p>
                         <div className="flex flex-wrap gap-1">
@@ -184,7 +184,7 @@ export default function Controls() {
                               {s}
                             </button>
                           ))}
-                          {!subs.length && <span className="text-xs text-slate-500">This topic has no subtopics.</span>}
+                          {!subs.length && <span className="text-xs text-surface-muted">This topic has no subtopics.</span>}
                         </div>
                       </>
                     );

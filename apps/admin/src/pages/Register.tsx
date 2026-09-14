@@ -78,13 +78,13 @@ export default function Register() {
           {([['Student ID', done.student_id], ['Login email', done.email], ['Password', done.password]] as const).map(([k, v]) => (
             <div key={k} className="flex items-center gap-2">
               <dt className="w-24 text-green-800 font-semibold">{k}</dt>
-              <dd className="font-mono bg-white border rounded px-2 py-1 flex-1 break-all">{v}</dd>
+              <dd className="font-mono bg-surface-raised border rounded px-2 py-1 flex-1 break-all">{v}</dd>
               <button className="btn-s" onClick={() => copy(k, v)}>{copied === k ? '✓' : 'Copy'}</button>
             </div>
           ))}
           <div className="flex items-center gap-2">
             <dt className="w-24 text-green-800 font-semibold">Access until</dt>
-            <dd className="font-mono bg-white border rounded px-2 py-1 flex-1">
+            <dd className="font-mono bg-surface-raised border rounded px-2 py-1 flex-1">
               {done.end_date || 'no expiry'}
             </dd>
           </div>
@@ -98,50 +98,50 @@ export default function Register() {
     <div className="max-w-2xl mx-auto">
       <div className="card">
         <h2 className="font-black text-lg mb-1">Register New Student</h2>
-        <p className="text-sm text-slate-500 mb-4">
+        <p className="text-sm text-surface-muted mb-4">
           Creates their login, their profile and their subscription in one go. No SQL.
         </p>
 
         <div className="grid sm:grid-cols-2 gap-3">
           <label className="block sm:col-span-2">
-            <span className="text-xs font-bold text-slate-600">Full name *</span>
+            <span className="text-xs font-bold text-surface-muted">Full name *</span>
             <input className="input" value={f.full_name} onChange={set('full_name')} placeholder="e.g. Nakato Sarah" />
           </label>
 
           <label className="block">
-            <span className="text-xs font-bold text-slate-600">Age</span>
+            <span className="text-xs font-bold text-surface-muted">Age</span>
             <input className="input" type="number" min={4} max={20} value={f.age} onChange={set('age')} placeholder="10" />
           </label>
 
           <label className="block">
-            <span className="text-xs font-bold text-slate-600">Class</span>
+            <span className="text-xs font-bold text-surface-muted">Class</span>
             <select className="input" value={f.klass} onChange={set('klass')}>
               {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
 
           <label className="block">
-            <span className="text-xs font-bold text-slate-600">Guardian name</span>
+            <span className="text-xs font-bold text-surface-muted">Guardian name</span>
             <input className="input" value={f.guardian_name} onChange={set('guardian_name')} />
           </label>
 
           <label className="block">
-            <span className="text-xs font-bold text-slate-600">Guardian contact</span>
+            <span className="text-xs font-bold text-surface-muted">Guardian contact</span>
             <input className="input" type="tel" value={f.guardian_contact} onChange={set('guardian_contact')} placeholder="07xx xxx xxx" />
           </label>
 
           <label className="block sm:col-span-2">
-            <span className="text-xs font-bold text-slate-600">Address</span>
+            <span className="text-xs font-bold text-surface-muted">Address</span>
             <textarea className="input" rows={2} value={f.address} onChange={set('address')} />
           </label>
 
           <label className="block">
-            <span className="text-xs font-bold text-slate-600">Registration date</span>
+            <span className="text-xs font-bold text-surface-muted">Registration date</span>
             <input className="input" type="date" value={f.registered_on} onChange={set('registered_on')} />
           </label>
 
           <label className="block">
-            <span className="text-xs font-bold text-slate-600">Photo</span>
+            <span className="text-xs font-bold text-surface-muted">Photo</span>
             <input className="input" type="file" accept="image/jpeg,image/png,image/webp"
               onChange={e => setPhoto(e.target.files?.[0] || null)} />
           </label>
@@ -149,22 +149,22 @@ export default function Register() {
 
         {/* ---- subscription ------------------------------------------------ */}
         <div className="mt-4 border-t pt-3">
-          <span className="text-xs font-bold text-slate-600 block mb-1">Paid for</span>
+          <span className="text-xs font-bold text-surface-muted block mb-1">Paid for</span>
           <div className="flex flex-wrap gap-1">
             {DAY_OPTIONS.map(d => (
               <button key={d} type="button"
-                className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${f.days === String(d) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600'}`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${f.days === String(d) ? 'bg-brand-600 text-white border-brand-600' : 'bg-surface-raised text-surface-muted'}`}
                 onClick={() => setF(s => ({ ...s, days: String(d) }))}>
                 {d} days
               </button>
             ))}
             <button type="button"
-              className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${f.days === '' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-600'}`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${f.days === '' ? 'bg-surface-ink text-surface-page border-surface-ink' : 'bg-surface-raised text-surface-muted'}`}
               onClick={() => setF(s => ({ ...s, days: '' }))}>
               No expiry
             </button>
           </div>
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs text-surface-muted mt-2">
             Access starts on the registration date and runs to{' '}
             <b>{f.registered_on && f.days
               ? new Date(new Date(f.registered_on).getTime() + Number(f.days) * 86400000).toISOString().slice(0, 10)
@@ -178,7 +178,7 @@ export default function Register() {
           <button className="btn-p" onClick={submit} disabled={busy}>
             {busy ? 'Registering…' : 'Register'}
           </button>
-          {photo && <span className="text-xs text-slate-500">Photo ready: {photo.name}</span>}
+          {photo && <span className="text-xs text-surface-muted">Photo ready: {photo.name}</span>}
         </div>
       </div>
     </div>

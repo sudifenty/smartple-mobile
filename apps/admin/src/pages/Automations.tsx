@@ -75,7 +75,7 @@ export default function Automations() {
           <h2 className="font-black">Auto-detect weak students</h2>
           <button className="btn-p" onClick={scanWeak}>Scan Weak Students</button>
         </div>
-        <p className="text-xs text-slate-400 mb-2">avg &lt; 50% per topic, with a one-tap suggestion.</p>
+        <p className="text-xs text-surface-faint mb-2">avg &lt; 50% per topic, with a one-tap suggestion.</p>
         {weak && (
           <table className="w-full">
             <thead><tr><th className="th">Student</th><th className="th">Class</th><th className="th">Topic</th><th className="th">Avg</th><th className="th">Suggestion</th><th className="th"></th></tr></thead>
@@ -92,7 +92,7 @@ export default function Automations() {
                   </td>
                 </tr>
               ))}
-              {!weak.length && <tr><td className="td text-slate-400" colSpan={6}>Nobody below 50%. 🎉</td></tr>}
+              {!weak.length && <tr><td className="td text-surface-faint" colSpan={6}>Nobody below 50%. 🎉</td></tr>}
             </tbody>
           </table>
         )}

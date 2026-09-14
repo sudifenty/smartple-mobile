@@ -46,23 +46,23 @@ export default function Usage() {
       {sel && (
         <>
           <div className="flex gap-4 mb-4 text-sm flex-wrap">
-            <div className="px-3 py-2 rounded-xl bg-indigo-50"><b>Today:</b> {today.n} answer{today.n === 1 ? '' : 's'}</div>
+            <div className="px-3 py-2 rounded-xl bg-brand-50 dark:bg-brand-900/30"><b>Today:</b> {today.n} answer{today.n === 1 ? '' : 's'}</div>
             <div className="px-3 py-2 rounded-xl bg-green-50">
               Last seen: {seen ? new Date(seen).toLocaleString() : 'never'}
             </div>
-            <a className="px-3 py-2 rounded-xl bg-slate-800 text-white" href={`#/parent/${sel.user_id}`}>Parent view ↗</a>
+            <a className="px-3 py-2 rounded-xl bg-surface-ink text-surface-page" href={`#/parent/${sel.user_id}`}>Parent view ↗</a>
           </div>
           <div className="flex items-end gap-2 h-40">
             {days.map(x => (
               <div key={x.d} className="flex-1 flex flex-col items-center gap-1">
                 <div className="w-full flex flex-col justify-end" style={{ height: '120px' }}>
-                  <div className="w-full bg-indigo-500 rounded-t" style={{ height: `${(x.n / max) * 100}%` }} title={`${x.n} answers`} />
+                  <div className="w-full bg-brand-50 dark:bg-brand-900/300 rounded-t" style={{ height: `${(x.n / max) * 100}%` }} title={`${x.n} answers`} />
                 </div>
-                <span className="text-[10px] text-slate-400">{x.d.slice(5)}</span>
+                <span className="text-[10px] text-surface-faint">{x.d.slice(5)}</span>
               </div>
             ))}
           </div>
-          <p className="text-xs text-slate-400 mt-2">Bars = answers recorded per day in learning_events.</p>
+          <p className="text-xs text-surface-faint mt-2">Bars = answers recorded per day in learning_events.</p>
         </>
       )}
     </div>

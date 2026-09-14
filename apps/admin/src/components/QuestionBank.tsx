@@ -165,9 +165,9 @@ export default function QuestionBank({ onAdd, onClose, preferSubject }: Props) {
   };
   const Src = ({ id, label }: { id: Source; label: string }) => (
     <button onClick={() => setSource(id)}
-      className={`px-3 py-2 rounded-xl text-sm font-bold border text-left ${source === id ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'}`}>
+      className={`px-3 py-2 rounded-xl text-sm font-bold border text-left ${source === id ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-surface-raised text-surface-muted border-surface-line'}`}>
       {label}
-      <span className={`block text-[11px] font-normal ${source === id ? 'text-emerald-100' : 'text-slate-400'}`}>{hintOf(id)}</span>
+      <span className={`block text-[11px] font-normal ${source === id ? 'text-emerald-100' : 'text-surface-faint'}`}>{hintOf(id)}</span>
     </button>
   );
 
@@ -207,15 +207,15 @@ export default function QuestionBank({ onAdd, onClose, preferSubject }: Props) {
   };
 
   return (
-    <div className="border rounded-xl bg-white space-y-3 p-3">
+    <div className="border rounded-xl bg-surface-raised space-y-3 p-3">
       <div className="flex items-start gap-2">
         <div>
           <b className="text-sm">Question bank</b>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-surface-muted">
             Real questions from the student app. Nothing here is generated — pick what you want, edit anything, save.
           </p>
         </div>
-        <button onClick={onClose} className="ml-auto text-xs text-slate-400 underline">close</button>
+        <button onClick={onClose} className="ml-auto text-xs text-surface-faint underline">close</button>
       </div>
 
       <div className="flex gap-2 flex-wrap">
@@ -223,28 +223,28 @@ export default function QuestionBank({ onAdd, onClose, preferSubject }: Props) {
         <Src id="revision" label="Revision exercises" />
       </div>
 
-      {!items.length && !err && <div className="text-sm text-slate-500 p-2">loading…</div>}
+      {!items.length && !err && <div className="text-sm text-surface-muted p-2">loading…</div>}
 
       {!!items.length && (
         <>
           <div className="grid md:grid-cols-4 gap-2">
-            <label className="text-xs text-slate-500">subject
+            <label className="text-xs text-surface-muted">subject
               <select className="input" value={subject} onChange={e => setSubject(e.target.value)}>
                 {[...new Set(items.map(i => i.subject))].map(s => <option key={s}>{s}</option>)}
               </select>
             </label>
-            <label className="text-xs text-slate-500">class
+            <label className="text-xs text-surface-muted">class
               <select className="input" value={level} onChange={e => setLevel(e.target.value)}>
                 {levels.map(l => <option key={l}>{l}</option>)}
               </select>
             </label>
-            <label className="text-xs text-slate-500">topic
+            <label className="text-xs text-surface-muted">topic
               <select className="input" value={groupKey} onChange={e => setGroupKey(e.target.value)}>
                 <option value="">choose a topic…</option>
                 {groups.map(g => <option key={g.key} value={g.key}>{g.topic} ({g.questions.length})</option>)}
               </select>
             </label>
-            <label className="text-xs text-slate-500">subtopic
+            <label className="text-xs text-surface-muted">subtopic
               <select className="input" value={subtopic} onChange={e => setSubtopic(e.target.value)}
                 disabled={source === 'revision'}>
                 <option value="">all</option>
@@ -264,17 +264,17 @@ export default function QuestionBank({ onAdd, onClose, preferSubject }: Props) {
                     {difficulties.map(d => <option key={d}>{d}</option>)}
                   </select>
                 )}
-                <button onClick={() => setPicked(new Set(shown.map(q => q.qid)))} className="text-xs px-2 py-1 rounded bg-slate-100">all shown</button>
-                <button onClick={() => setPicked(new Set(shown.slice(0, 10).map(q => q.qid)))} className="text-xs px-2 py-1 rounded bg-slate-100">first 10</button>
-                <button onClick={() => setPicked(new Set())} className="text-xs px-2 py-1 rounded bg-slate-100">none</button>
-                <label className="text-xs text-slate-500 ml-auto flex items-center gap-1">
+                <button onClick={() => setPicked(new Set(shown.map(q => q.qid)))} className="text-xs px-2 py-1 rounded bg-surface-sunken">all shown</button>
+                <button onClick={() => setPicked(new Set(shown.slice(0, 10).map(q => q.qid)))} className="text-xs px-2 py-1 rounded bg-surface-sunken">first 10</button>
+                <button onClick={() => setPicked(new Set())} className="text-xs px-2 py-1 rounded bg-surface-sunken">none</button>
+                <label className="text-xs text-surface-muted ml-auto flex items-center gap-1">
                   <input type="checkbox" checked={showAnswers} onChange={() => setShowAnswers(v => !v)} />
                   show the answers
                 </label>
               </div>
 
               {source === 'revision' && (
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-surface-faint">
                   One revision set sits at the end of the whole topic — the notes do not attach single questions to
                   single subtopics, so the subtopic filter is off here.
                 </p>
@@ -283,48 +283,48 @@ export default function QuestionBank({ onAdd, onClose, preferSubject }: Props) {
               <div className="space-y-2 max-h-[26rem] overflow-y-auto pr-1">
                 {shown.map(q => (
                   <label key={q.qid} data-qid={q.qid}
-                    className={`flex gap-2 rounded-lg border p-2 text-sm ${picked.has(q.qid) ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-slate-200'}`}>
+                    className={`flex gap-2 rounded-lg border p-2 text-sm ${picked.has(q.qid) ? 'bg-emerald-50 border-emerald-300' : 'bg-surface-raised border-surface-line'}`}>
                     <input type="checkbox" className="mt-1" checked={picked.has(q.qid)} onChange={() => toggle(q.qid)} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2 flex-wrap">
-                        {q.subtopic && <span className="text-[11px] bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">{q.subtopic}</span>}
-                        {q.difficulty && <span className="text-[11px] text-slate-400">{q.difficulty}</span>}
+                        {q.subtopic && <span className="text-[11px] bg-surface-sunken text-surface-muted rounded-full px-2 py-0.5">{q.subtopic}</span>}
+                        {q.difficulty && <span className="text-[11px] text-surface-faint">{q.difficulty}</span>}
                         <span>{q.question}</span>
                       </div>
                       {showAnswers && (q.type === 'mcq'
                         ? <div className="text-xs mt-0.5 flex flex-wrap gap-x-3">
                             {(q.options || []).map((o, i) => (
-                              <span key={i} className={LETTERS[i] === q.correct ? 'text-emerald-700 font-semibold' : 'text-slate-500'}>
+                              <span key={i} className={LETTERS[i] === q.correct ? 'text-emerald-700 font-semibold' : 'text-surface-muted'}>
                                 {LETTERS[i]}. {o}
                               </span>
                             ))}
                           </div>
-                        : <div className="text-xs text-slate-500 mt-0.5">
+                        : <div className="text-xs text-surface-muted mt-0.5">
                             answer: {q.answer || <span className="text-amber-600">none supplied — add one</span>}
                           </div>)}
-                      {showAnswers && q.note && <div className="text-[11px] text-slate-400 mt-0.5">{q.note}</div>}
+                      {showAnswers && q.note && <div className="text-[11px] text-surface-faint mt-0.5">{q.note}</div>}
                     </div>
-                    <span className="text-xs text-slate-400 whitespace-nowrap">marks
+                    <span className="text-xs text-surface-faint whitespace-nowrap">marks
                       <input type="number" min={1} max={20} className="w-14 ml-1 border rounded px-1"
                         value={marksOf(q)}
                         onChange={e => setMarksFor(p => ({ ...p, [q.qid]: Number(e.target.value) }))} />
                     </span>
                   </label>
                 ))}
-                {!shown.length && <p className="text-sm text-slate-400">No question matches those filters.</p>}
+                {!shown.length && <p className="text-sm text-surface-faint">No question matches those filters.</p>}
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-slate-500">
+                <span className="text-sm text-surface-muted">
                   {chosen.length} selected · {chosenMarks} marks
                   {chosenMcq ? ` · ${chosenMcq} will mark themselves` : ''}
                 </span>
                 <button onClick={add} disabled={!chosen.length}
-                  className="ml-auto px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold disabled:opacity-40">
+                  className="ml-auto px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-bold disabled:opacity-40">
                   Add {chosen.length || ''} to the exam
                 </button>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-surface-faint">
                 Multiple-choice questions mark themselves on the phone. Written answers come to you for marking.
                 Everything you add stays editable.
               </p>

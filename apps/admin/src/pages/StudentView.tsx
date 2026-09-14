@@ -53,9 +53,9 @@ export default function StudentView({ student }: { student: Profile }) {
   return (
     <div className="max-w-md mx-auto">
       <div className="card mb-3" style={{ backgroundColor: '#FFF6E6' }}>
-        <p className="text-xs text-slate-500 mb-1 font-bold">👁 STUDENT VIEW — what {student.display_name} sees in the app</p>
+        <p className="text-xs text-surface-muted mb-1 font-bold">👁 STUDENT VIEW — what {student.display_name} sees in the app</p>
         <h2 className="font-black text-xl">Hello {student.display_name || 'learner'} 👋</h2>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-surface-muted">
           Class {klass}
           {assignment?.forced_subject ? ` · ${assignment.forced_subject}` : ''}
           {assignment?.forced_topic ? ` · ${assignment.forced_topic}` : ''}
@@ -69,31 +69,31 @@ export default function StudentView({ student }: { student: Profile }) {
             <span className={chip(assignment.allow_notes)}>Notes {assignment.allow_notes ? 'on' : 'OFF'}</span>
             <span className={chip(assignment.allow_practice_with_answers)}>Practice w/ answers {assignment.allow_practice_with_answers ? 'on' : 'OFF'}</span>
             <span className={chip(assignment.allow_practice_no_answers)}>No-answers drill {assignment.allow_practice_no_answers ? 'on' : 'OFF'}</span>
-            {assignment.forced_tier && <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">Forced tier {assignment.forced_tier}</span>}
+            {assignment.forced_tier && <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300">Forced tier {assignment.forced_tier}</span>}
           </div>
-          {assignment.note && <p className="text-xs text-slate-500 mt-2">📝 {assignment.note}</p>}
+          {assignment.note && <p className="text-xs text-surface-muted mt-2">📝 {assignment.note}</p>}
         </div>
       )}
 
       <div className="card mb-3">
         <h3 className="font-bold mb-2">Their topic list {loading ? '…' : `(${topics.length})`}</h3>
         {topics.map(t => (
-          <div key={`${t.subject}|${t.topic}`} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+          <div key={`${t.subject}|${t.topic}`} className="flex items-center justify-between py-1.5 border-b border-surface-line last:border-0">
             <div>
               <p className="font-semibold text-sm">{t.topic}</p>
-              <p className="text-xs text-slate-400">{t.subject}</p>
+              <p className="text-xs text-surface-faint">{t.subject}</p>
             </div>
-            <span className="text-xs text-slate-400">📖 ✏️ 🚀</span>
+            <span className="text-xs text-surface-faint">📖 ✏️ 🚀</span>
           </div>
         ))}
-        {!loading && !topics.length && <p className="text-sm text-slate-400">The questions bank is empty for this class/filter — the student sees an empty home screen. Add questions or adjust Remote Control.</p>}
+        {!loading && !topics.length && <p className="text-sm text-surface-faint">The questions bank is empty for this class/filter — the student sees an empty home screen. Add questions or adjust Remote Control.</p>}
       </div>
 
       {nudges.length > 0 && (
         <div className="card mb-3">
           <h3 className="font-bold mb-2">📬 Undelivered messages (pop on their next app open)</h3>
           {nudges.map((n, i) => (
-            <p key={i} className="text-sm bg-yellow-50 rounded-lg p-2 mb-1">“{n.message}” <span className="text-xs text-slate-400">· {new Date(n.created_at).toLocaleTimeString()}</span></p>
+            <p key={i} className="text-sm bg-yellow-50 rounded-lg p-2 mb-1">“{n.message}” <span className="text-xs text-surface-faint">· {new Date(n.created_at).toLocaleTimeString()}</span></p>
           ))}
         </div>
       )}
@@ -101,12 +101,12 @@ export default function StudentView({ student }: { student: Profile }) {
       <div className="card">
         <h3 className="font-bold mb-2">Their latest answers</h3>
         {recent.map((a, i) => (
-          <div key={i} className="flex justify-between text-sm py-1 border-b border-slate-100 last:border-0">
+          <div key={i} className="flex justify-between text-sm py-1 border-b border-surface-line last:border-0">
             <span>{a.topic} {a.tier ? `T${a.tier}` : ''}</span>
-            <span>{a.skipped ? '⏭ skipped' : a.correct ? '✓' : a.correct === false ? '✗' : '—'} <span className="text-xs text-slate-400">{new Date(a.at).toLocaleTimeString()}</span></span>
+            <span>{a.skipped ? '⏭ skipped' : a.correct ? '✓' : a.correct === false ? '✗' : '—'} <span className="text-xs text-surface-faint">{new Date(a.at).toLocaleTimeString()}</span></span>
           </div>
         ))}
-        {!recent.length && <p className="text-sm text-slate-400">No answers yet.</p>}
+        {!recent.length && <p className="text-sm text-surface-faint">No answers yet.</p>}
       </div>
     </div>
   );

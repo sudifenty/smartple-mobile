@@ -183,7 +183,7 @@ export default function StudentAnswers({ student }: { student: Profile }) {
     return { right, wrong, marking, questions, blank };
   }, [attempts]);
 
-  if (loading) return <div className="card text-sm text-slate-500">reading {student.display_name}'s answers…</div>;
+  if (loading) return <div className="card text-sm text-surface-muted">reading {student.display_name}'s answers…</div>;
 
   return (
     <div className="space-y-3">
@@ -192,29 +192,29 @@ export default function StudentAnswers({ student }: { student: Profile }) {
       <div className="card">
         <div className="flex items-center gap-2 flex-wrap">
           <b className="text-sm">Everything {student.display_name} has answered</b>
-          <span className="text-xs text-slate-400">newest first</span>
+          <span className="text-xs text-surface-faint">newest first</span>
           <div className="ml-auto flex gap-2">
             {(['all', 'exam', 'practice'] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
-                className={`text-xs px-2 py-1 rounded-lg font-bold ${filter === f ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                className={`text-xs px-2 py-1 rounded-lg font-bold ${filter === f ? 'bg-brand-600 text-white' : 'bg-surface-sunken text-surface-muted'}`}>
                 {f === 'all' ? 'all' : f === 'exam' ? 'exams' : 'practice'}
               </button>
             ))}
           </div>
         </div>
         <div className="flex gap-2 flex-wrap mt-2 text-xs">
-          <span className="px-2 py-1 rounded-lg bg-slate-100">{totals.questions} answers recorded</span>
-          <span className="px-2 py-1 rounded-lg bg-slate-100">{totals.blank} left blank</span>
+          <span className="px-2 py-1 rounded-lg bg-surface-sunken">{totals.questions} answers recorded</span>
+          <span className="px-2 py-1 rounded-lg bg-surface-sunken">{totals.blank} left blank</span>
           <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700">{totals.marking} waiting for you to mark</span>
         </div>
-        <label className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+        <label className="text-xs text-surface-muted mt-2 flex items-center gap-1">
           <input type="checkbox" checked={openOnly} onChange={() => setOpenOnly(v => !v)} />
           hide the ones already marked
         </label>
       </div>
 
       {pending.length > 0 && (
-        <div className="card bg-slate-50">
+        <div className="card bg-surface-sunken">
           <b className="text-sm">Given but not attempted</b>
           <div className="mt-1 space-y-1">
             {pending.map((p, i) => (
@@ -242,21 +242,21 @@ export default function StudentAnswers({ student }: { student: Profile }) {
             <button onClick={() => setOpen(o => ({ ...o, [a.key]: !o[a.key] }))}
               className="w-full text-left">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600">
+                <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-surface-sunken text-surface-muted">
                   {a.source === 'exam' ? 'exam' : 'practice'}
                 </span>
                 <b className="text-sm">{a.title}</b>
-                <span className="text-xs text-slate-400">{when(a.at)}</span>
+                <span className="text-xs text-surface-faint">{when(a.at)}</span>
                 {a.subject || a.topic
-                  ? <span className="text-[11px] text-slate-400">{[a.subject, a.topic].filter(Boolean).join(' · ')}</span>
+                  ? <span className="text-[11px] text-surface-faint">{[a.subject, a.topic].filter(Boolean).join(' · ')}</span>
                   : null}
-                <span className="ml-auto text-xs text-slate-400">{a.answers.length} answers</span>
-                <span className="text-xs font-bold text-indigo-600 whitespace-nowrap">
+                <span className="ml-auto text-xs text-surface-faint">{a.answers.length} answers</span>
+                <span className="text-xs font-bold text-brand-600 dark:text-brand-300 whitespace-nowrap">
                   {isOpen ? '▾ hide' : '▸ read what they wrote'}
                 </span>
               </div>
               {!isOpen && (
-                <div className="mt-1 text-xs text-slate-500 italic truncate">
+                <div className="mt-1 text-xs text-surface-muted italic truncate">
                   {preview ? `“${preview.length > 110 ? preview.slice(0, 110) + '…' : preview}”`
                            : 'they left everything blank'}
                 </div>
@@ -264,7 +264,7 @@ export default function StudentAnswers({ student }: { student: Profile }) {
             </button>
 
             {isOpen && <div className="mt-2 space-y-2">
-              <div className="text-[11px] text-slate-400">
+              <div className="text-[11px] text-surface-faint">
                 {a.score != null && <><span>{a.score}%</span> · </>}
                 {a.source === 'practice'
                   ? 'marked on the phone — prose answers were marked by the learner'
@@ -275,19 +275,19 @@ export default function StudentAnswers({ student }: { student: Profile }) {
                 const words = wordsOf(q, a.examId != null ? papers[a.examId] : null);
                 const model = (q.answer_text || '').trim() || (q.answer || '').trim();
                 return (
-                <div key={i} className="border rounded-lg p-2 bg-white">
-                  <div className="text-xs text-slate-500">Q{i + 1}. {q.q || '(no question text was stored)'}</div>
+                <div key={i} className="border rounded-lg p-2 bg-surface-raised">
+                  <div className="text-xs text-surface-muted">Q{i + 1}. {q.q || '(no question text was stored)'}</div>
                   {/* what they wrote is the biggest thing on the card */}
                   <div className="mt-1 text-[15px] leading-snug break-words">
                     {words
-                      ? <span className="font-semibold text-slate-900">{words}</span>
-                      : <span className="text-slate-400 italic">left blank — they wrote nothing here</span>}
+                      ? <span className="font-semibold text-surface-ink">{words}</span>
+                      : <span className="text-surface-faint italic">left blank — they wrote nothing here</span>}
                   </div>
                   {model
-                    ? <div className="text-xs text-slate-500 mt-1">model answer: {model}</div>
+                    ? <div className="text-xs text-surface-muted mt-1">model answer: {model}</div>
                     : q.ok === null && <div className="text-xs text-amber-600 mt-1">no model answer was saved with this question</div>}
                   {q.self && (
-                    <div className="text-[11px] text-indigo-600 mt-1">
+                    <div className="text-[11px] text-brand-600 dark:text-brand-300 mt-1">
                       they marked this themselves: {q.self === 'right' ? 'correct' : q.self === 'part' ? 'partly correct' : 'wrong'}
                       {q.max != null && ` · gave themselves ${q.marks}/${q.max}`}
                     </div>
@@ -295,8 +295,8 @@ export default function StudentAnswers({ student }: { student: Profile }) {
                   {/* the verdict stays, but small and underneath */}
                   <div className="mt-1 flex items-center gap-2 flex-wrap">
                     <Verdict ok={q.ok} />
-                    <span className="text-[11px] text-slate-400">{q.marks} mark{q.marks === 1 ? '' : 's'}</span>
-                    {q.qid && <span className="text-[11px] text-slate-300">{q.qid}</span>}
+                    <span className="text-[11px] text-surface-faint">{q.marks} mark{q.marks === 1 ? '' : 's'}</span>
+                    {q.qid && <span className="text-[11px] text-white/40">{q.qid}</span>}
                   </div>
                 </div>
                 );
@@ -307,7 +307,7 @@ export default function StudentAnswers({ student }: { student: Profile }) {
       })}
 
       {!shown.length && (
-        <div className="card text-sm text-slate-500 space-y-1">
+        <div className="card text-sm text-surface-muted space-y-1">
           <b>Nothing recorded yet.</b>
           <p>Exam answers arrive here the moment they submit. Practice answers now arrive too, but only
              from runs finished after this update — practice done before it stayed on the phone and cannot

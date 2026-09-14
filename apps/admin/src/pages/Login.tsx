@@ -20,7 +20,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="card w-full max-w-sm">
         <h1 className="text-xl font-black mb-1">SmartPle Admin</h1>
-        <p className="text-sm text-slate-500 mb-4">Admin accounts only.</p>
+        <p className="text-sm text-surface-muted mb-4">Admin accounts only.</p>
         <input className="input mb-2" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
         <input className="input mb-3" type="password" placeholder="Password" value={password}
                onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && signIn()} />

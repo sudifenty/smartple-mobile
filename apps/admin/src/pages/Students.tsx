@@ -102,7 +102,7 @@ export default function Students() {
   const badge = (s: Profile) => {
     const left = daysLeft(s);
     const end = endsOn(s);
-    if (!end) return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">no expiry</span>;
+    if (!end) return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-surface-sunken text-surface-muted">no expiry</span>;
     if (left === null) return null;
     if (left < 0) return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">expired {end}</span>;
     if (left <= 7) return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">{left}d left</span>;
@@ -115,11 +115,11 @@ export default function Students() {
         {/* ---- the two tabs ------------------------------------------------ */}
         <div className="flex gap-1 mb-2">
           <button onClick={() => setTab('active')}
-            className={`flex-1 px-2 py-2 rounded-lg text-sm font-bold border ${tab === 'active' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-green-700 border-green-200'}`}>
+            className={`flex-1 px-2 py-2 rounded-lg text-sm font-bold border ${tab === 'active' ? 'bg-green-600 text-white border-green-600' : 'bg-surface-raised text-green-700 border-green-200'}`}>
             ● Active <span className="opacity-80">({active.length})</span>
           </button>
           <button onClick={() => setTab('expired')}
-            className={`flex-1 px-2 py-2 rounded-lg text-sm font-bold border ${tab === 'expired' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-700 border-red-200'}`}>
+            className={`flex-1 px-2 py-2 rounded-lg text-sm font-bold border ${tab === 'expired' ? 'bg-red-600 text-white border-red-600' : 'bg-surface-raised text-red-700 border-red-200'}`}>
             ● Expired <span className="opacity-80">({expired.length})</span>
           </button>
         </div>
@@ -129,12 +129,12 @@ export default function Students() {
         <div className="max-h-[68vh] overflow-auto">
           {shown.map(s => (
             <div key={s.user_id}
-              className={`w-full flex items-center gap-1 px-2 py-2 rounded-lg text-sm ${sel?.user_id === s.user_id ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
+              className={`w-full flex items-center gap-1 px-2 py-2 rounded-lg text-sm ${sel?.user_id === s.user_id ? 'bg-brand-50 dark:bg-brand-900/30' : 'hover:bg-surface-sunken'}`}>
               <button onClick={() => pick(s)} className="flex-1 text-left min-w-0">
                 <span className={`block truncate ${sel?.user_id === s.user_id ? 'font-bold' : ''}`}>
                   {s.display_name || s.full_name || (s.user_id ? s.user_id.slice(0, 8) : '(no name)')}
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-surface-faint">
                   {s.class || '?'}{s.student_id_unique ? ` · ${s.student_id_unique}` : ''}
                 </span>
               </button>
@@ -142,7 +142,7 @@ export default function Students() {
             </div>
           ))}
           {!shown.length && (
-            <div className="text-sm text-slate-400 px-2 py-4">
+            <div className="text-sm text-surface-faint px-2 py-4">
               {tab === 'active' ? 'No active students match.' : 'Nobody has expired. '}
             </div>
           )}
@@ -153,7 +153,7 @@ export default function Students() {
         {flash && <div className="card mb-3 bg-green-50 border-green-300 text-green-800 font-bold text-sm">✓ {flash}</div>}
 
         {!sel && (
-          <div className="card text-slate-500">
+          <div className="card text-surface-muted">
             Pick a student to read what they wrote, see their progress, open their own screen, or renew their access.
           </div>
         )}
@@ -164,12 +164,12 @@ export default function Students() {
               <div className="flex items-start gap-3 flex-wrap">
                 <div className="flex-1 min-w-0">
                   <h2 className="font-black">
-                    {sel.display_name || sel.full_name} <span className="text-slate-400 font-normal">· {sel.class}</span>
+                    {sel.display_name || sel.full_name} <span className="text-surface-faint font-normal">· {sel.class}</span>
                   </h2>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-surface-faint">
                     {sel.student_id_unique || 'no Student ID yet'} · {sel.user_id}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-surface-muted mt-1">
                     Guardian: {sel.guardian_name || '—'} {sel.guardian_contact ? `· ${sel.guardian_contact}` : ''}
                   </p>
                   <div className="mt-1">{badge(sel)}</div>
@@ -199,7 +199,7 @@ export default function Students() {
                       <td className="td">{r.n}</td>
                     </tr>
                   ))}
-                  {!rows.length && <tr><td className="td text-slate-400" colSpan={5}>No attempts yet.</td></tr>}
+                  {!rows.length && <tr><td className="td text-surface-faint" colSpan={5}>No attempts yet.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -211,7 +211,7 @@ export default function Students() {
                   {skips.map((s, i) => (
                     <tr key={i}><td className="td">{s.topic}</td><td className="td">T{s.tier ?? '?'}</td><td className="td font-bold">{s.n}</td></tr>
                   ))}
-                  {!skips.length && <tr><td className="td text-slate-400" colSpan={3}>No skips.</td></tr>}
+                  {!skips.length && <tr><td className="td text-surface-faint" colSpan={3}>No skips.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -225,24 +225,24 @@ export default function Students() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => !renewBusy && setRenewFor(null)}>
           <div className="card w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <h3 className="font-black mb-1">Renew for how many days?</h3>
-            <p className="text-sm text-slate-500 mb-3">
+            <p className="text-sm text-surface-muted mb-3">
               {renewFor.display_name || renewFor.full_name} — access restarts today.
             </p>
             <div className="flex gap-2 mb-3">
               {RENEW_OPTIONS.map(d => (
                 <button key={d}
-                  className={`flex-1 py-3 rounded-lg font-black border ${renewDays === d ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700'}`}
+                  className={`flex-1 py-3 rounded-lg font-black border ${renewDays === d ? 'bg-brand-600 text-white border-brand-600' : 'bg-surface-raised text-surface-ink'}`}
                   onClick={() => setRenewDays(d)}>
                   {d}
                 </button>
               ))}
             </div>
             <label className="block mb-3">
-              <span className="text-xs font-bold text-slate-600">Or a custom number of days</span>
+              <span className="text-xs font-bold text-surface-muted">Or a custom number of days</span>
               <input className="input" type="number" min={1} max={3650} value={renewDays}
                 onChange={e => setRenewDays(Math.max(1, Number(e.target.value) || 1))} />
             </label>
-            <p className="text-xs text-slate-500 mb-3">
+            <p className="text-xs text-surface-muted mb-3">
               New end date: <b>{new Date(Date.now() + renewDays * 86400000).toISOString().slice(0, 10)}</b>
             </p>
             {renewErr && <div className="text-sm font-bold text-red-700 bg-red-50 border border-red-200 rounded p-2 mb-3">{renewErr}</div>}
@@ -263,6 +263,6 @@ export default function Students() {
 export function StudentPhoto({ path, size = 40 }: { path: string | null; size?: number }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => { if (path) photoUrl(path).then(setUrl).catch(() => setUrl(null)); }, [path]);
-  if (!url) return <div className="rounded-full bg-slate-200" style={{ width: size, height: size }} />;
+  if (!url) return <div className="rounded-full bg-surface-sunken" style={{ width: size, height: size }} />;
   return <img src={url} alt="" className="rounded-full object-cover" style={{ width: size, height: size }} />;
 }

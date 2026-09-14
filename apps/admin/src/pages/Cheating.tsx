@@ -117,7 +117,7 @@ export default function Cheating() {
     <div className="space-y-4">
       <div className="card">
         <h2 className="font-black mb-2">Speed-guessing alerts (5+ answers &lt; 15s total, last 24h)</h2>
-        {guessers.length === 0 && <p className="text-sm text-slate-400">None right now. 🎉</p>}
+        {guessers.length === 0 && <p className="text-sm text-surface-faint">None right now. 🎉</p>}
         {guessers.map((g, i) => (
           <div key={i} className="text-sm py-1">🚩 <b>{g.display_name}</b> — {g.n_questions} questions in {g.total_seconds}s → flagged “Guessing”</div>
         ))}
@@ -148,7 +148,7 @@ export default function Cheating() {
                   <td className="td"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${badgeCls(t.flag)}`}>{badge(t.flag)}</span></td>
                 </tr>
               ))}
-              {!timeline.length && <tr><td className="td text-slate-400" colSpan={5}>No view/typing/submit events for this student.</td></tr>}
+              {!timeline.length && <tr><td className="td text-surface-faint" colSpan={5}>No view/typing/submit events for this student.</td></tr>}
             </tbody>
           </table>
         )}

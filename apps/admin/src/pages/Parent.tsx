@@ -30,21 +30,21 @@ export default function Parent({ userId }: { userId: string }) {
   return (
     <div className="min-h-screen p-4 max-w-md mx-auto">
       <h1 className="font-black text-lg mb-1">📚 {report.display_name} — Learning Report</h1>
-      <p className="text-slate-400 text-sm mb-4">Read-only · Class {report.class || '?'}</p>
+      <p className="text-surface-faint text-sm mb-4">Read-only · Class {report.class || '?'}</p>
       <div className="card mb-3">
-        <div className="text-3xl font-black text-indigo-700">{report.total_minutes_today} min</div>
-        <div className="text-sm text-slate-500">studied today (offline time included)</div>
+        <div className="text-3xl font-black text-brand-700 dark:text-brand-300">{report.total_minutes_today} min</div>
+        <div className="text-sm text-surface-muted">studied today (offline time included)</div>
       </div>
       <div className="card mb-3">
         <h2 className="font-bold mb-2">Needs support in</h2>
         {(report.weakest || []).map((w: any, i: number) => (
-          <div key={i} className="flex justify-between text-sm py-1 border-t border-slate-100">
+          <div key={i} className="flex justify-between text-sm py-1 border-t border-surface-line">
             <span>{w.subject} · {w.topic}</span><b className="text-red-600">{w.avg_score}%</b>
           </div>
         ))}
-        {!(report.weakest || []).length && <p className="text-sm text-slate-400">No weak topics yet.</p>}
+        {!(report.weakest || []).length && <p className="text-sm text-surface-faint">No weak topics yet.</p>}
       </div>
-      <p className="text-xs text-slate-400">Share this link with the code to let a parent follow progress.</p>
+      <p className="text-xs text-surface-faint">Share this link with the code to let a parent follow progress.</p>
     </div>
   );
 }

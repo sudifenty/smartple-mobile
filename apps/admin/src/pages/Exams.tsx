@@ -176,7 +176,7 @@ export default function Exams() {
 
   const Tab = ({ id, label }: { id: typeof tab; label: string }) => (
     <button onClick={() => setTab(id)}
-      className={`px-4 py-2 rounded-xl text-sm font-bold ${tab === id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+      className={`px-4 py-2 rounded-xl text-sm font-bold ${tab === id ? 'bg-brand-600 text-white' : 'bg-surface-sunken text-surface-muted'}`}>
       {label}
     </button>
   );
@@ -187,7 +187,7 @@ export default function Exams() {
         <Tab id="create" label="1 · Create exam" />
         <Tab id="assign" label="2 · Assign" />
         <Tab id="results" label="3 · Results" />
-        <button onClick={reload} className="ml-auto text-sm text-slate-500 underline">refresh</button>
+        <button onClick={reload} className="ml-auto text-sm text-surface-muted underline">refresh</button>
       </div>
       {msg && <div className="card bg-green-50 text-green-800 text-sm font-semibold">{msg}</div>}
       {err && <div className="card bg-red-50 text-red-700 text-sm">{err}</div>}
@@ -209,33 +209,33 @@ export default function Exams() {
 
           <div className="flex gap-2 items-center">
             <button onClick={() => setKind('topic')}
-              className={`px-3 py-2 rounded-xl text-sm font-bold border ${kind === 'topic' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}>
+              className={`px-3 py-2 rounded-xl text-sm font-bold border ${kind === 'topic' ? 'bg-brand-600 text-white border-brand-600' : 'bg-surface-raised text-surface-muted border-surface-line'}`}>
               From questions</button>
             <button onClick={() => setKind('pdf')}
-              className={`px-3 py-2 rounded-xl text-sm font-bold border ${kind === 'pdf' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}>
+              className={`px-3 py-2 rounded-xl text-sm font-bold border ${kind === 'pdf' ? 'bg-brand-600 text-white border-brand-600' : 'bg-surface-raised text-surface-muted border-surface-line'}`}>
               From a PDF paper</button>
-            <span className="text-xs text-slate-400 ml-auto">an exam is invisible on every phone until you assign it</span>
+            <span className="text-xs text-surface-faint ml-auto">an exam is invisible on every phone until you assign it</span>
           </div>
 
           {kind === 'pdf' && (
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm border border-dashed rounded-xl p-3 cursor-pointer bg-slate-50">
+              <label className="flex items-center gap-2 text-sm border border-dashed rounded-xl p-3 cursor-pointer bg-surface-sunken">
                 <input type="file" accept="application/pdf" className="text-xs" disabled={busy}
                   onChange={e => { const f = e.target.files?.[0]; if (f) uploadPdf(f); }} />
-                <span className="text-slate-500">{busy ? 'uploading…' : pdfPath ? `uploaded: ${pdfPath.split('-').pop()}` : 'choose a UNEB paper (PDF)'}</span>
+                <span className="text-surface-muted">{busy ? 'uploading…' : pdfPath ? `uploaded: ${pdfPath.split('-').pop()}` : 'choose a UNEB paper (PDF)'}</span>
               </label>
-              {pdfPath && <Suspense fallback={<div className="text-sm text-slate-500 p-3">loading the PDF editor…</div>}>
+              {pdfPath && <Suspense fallback={<div className="text-sm text-surface-muted p-3">loading the PDF editor…</div>}>
                 <PdfBoxEditor path={pdfPath} boxes={boxes} onChange={setBoxes} />
               </Suspense>}
             </div>
           )}
 
           {kind === 'topic' && qs.map((q, i) => (
-            <div key={i} className="border rounded-xl p-3 space-y-2 bg-slate-50">
+            <div key={i} className="border rounded-xl p-3 space-y-2 bg-surface-sunken">
               <div className="flex items-center gap-2">
                 <b className="text-sm">Q{i + 1}</b>
                 <button onClick={() => setQ(i, { kind: q.kind === 'mcq' ? 'short' : 'mcq', options: q.kind === 'mcq' ? ['', '', '', ''] : [] })}
-                  className="text-xs px-2 py-1 rounded bg-white border">
+                  className="text-xs px-2 py-1 rounded bg-surface-raised border">
                   {q.kind === 'mcq' ? 'multiple choice' : 'written answer'}
                 </button>
                 {(q.is_from_revision_bank || q.is_from_practice_bank) && (
@@ -244,7 +244,7 @@ export default function Exams() {
                     from the {q.is_from_revision_bank ? 'notes' : 'app'} · {q.qid}
                   </span>
                 )}
-                <label className="text-xs text-slate-500 ml-auto">marks
+                <label className="text-xs text-surface-muted ml-auto">marks
                   <input type="number" min={1} className="w-14 ml-1 border rounded px-1"
                     value={q.marks} onChange={e => setQ(i, { marks: Number(e.target.value) })} />
                 </label>
@@ -267,7 +267,7 @@ export default function Exams() {
           ))}
 
           {kind === 'topic' && showBank && (
-            <Suspense fallback={<div className="text-sm text-slate-500 p-3">loading the question bank…</div>}>
+            <Suspense fallback={<div className="text-sm text-surface-muted p-3">loading the question bank…</div>}>
               <QuestionBank preferSubject={subject} onClose={() => setShowBank(false)} onAdd={addFromBank} />
             </Suspense>
           )}
@@ -277,16 +277,16 @@ export default function Exams() {
               className={`px-3 py-2 rounded-lg text-sm font-bold border ${showBank ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-50 text-emerald-800 border-emerald-300'}`}>
               {showBank ? 'close the question bank' : 'Pick from the question bank'}
             </button>
-            <button onClick={() => setQs(p => [...p, mcq()])} className="btn-soft text-sm px-3 py-2 rounded-lg bg-slate-100">+ multiple choice</button>
-            <button onClick={() => setQs(p => [...p, written()])} className="btn-soft text-sm px-3 py-2 rounded-lg bg-slate-100">+ written question</button>
-            <span className="text-sm text-slate-500">{kind === 'pdf'
+            <button onClick={() => setQs(p => [...p, mcq()])} className="btn-soft text-sm px-3 py-2 rounded-lg bg-surface-sunken">+ multiple choice</button>
+            <button onClick={() => setQs(p => [...p, written()])} className="btn-soft text-sm px-3 py-2 rounded-lg bg-surface-sunken">+ written question</button>
+            <span className="text-sm text-surface-muted">{kind === 'pdf'
               ? `${boxes.length} answer boxes · ${boxes.reduce((a, b) => a + (Number(b.marks) || 0), 0)} marks`
               : `${qs.filter(q => q.q.trim()).length} questions · ${totalMarks} marks` +
                 (fromBankCount ? ` · ${fromBankCount} from the question bank` : '')}</span>
             <button onClick={saveExam}
-              className="ml-auto px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold">Save exam</button>
+              className="ml-auto px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-bold">Save exam</button>
           </div>
-          <p className="text-xs text-slate-400">Multiple choice is marked automatically on the phone. Written answers — including anything typed into a PDF box — are sent to you for marking.</p>
+          <p className="text-xs text-surface-faint">Multiple choice is marked automatically on the phone. Written answers — including anything typed into a PDF box — are sent to you for marking.</p>
         </div>
       )}
 
@@ -297,12 +297,12 @@ export default function Exams() {
             <div className="flex items-center gap-2 flex-wrap">
               <b className="text-sm">Who can see this exam?</b>
               <button onClick={() => setChosen(new Set(students.map(s => s.user_id)))}
-                className="text-xs px-2 py-1 rounded bg-slate-100">all students</button>
+                className="text-xs px-2 py-1 rounded bg-surface-sunken">all students</button>
               {['P4', 'P5', 'P6', 'P7'].map(c => (
                 <button key={c} onClick={() => setChosen(new Set(students.filter(s => s.class === c).map(s => s.user_id)))}
-                  className="text-xs px-2 py-1 rounded bg-slate-100">{c}</button>
+                  className="text-xs px-2 py-1 rounded bg-surface-sunken">{c}</button>
               ))}
-              <button onClick={() => setChosen(new Set())} className="text-xs px-2 py-1 rounded bg-slate-100">none</button>
+              <button onClick={() => setChosen(new Set())} className="text-xs px-2 py-1 rounded bg-surface-sunken">none</button>
             </div>
             {students.map(s => (
               <label key={s.user_id} className="flex items-center gap-2 text-sm py-1">
@@ -312,10 +312,10 @@ export default function Exams() {
                     n.has(s.user_id) ? n.delete(s.user_id) : n.add(s.user_id);
                     return n;
                   })} />
-                {s.display_name || s.user_id.slice(0, 8)} <span className="text-slate-400">· {s.class || '?'}</span>
+                {s.display_name || s.user_id.slice(0, 8)} <span className="text-surface-faint">· {s.class || '?'}</span>
               </label>
             ))}
-            {!students.length && <p className="text-sm text-slate-400">No students found.</p>}
+            {!students.length && <p className="text-sm text-surface-faint">No students found.</p>}
           </div>
           <div className="card space-y-3">
             <b className="text-sm">The exam</b>
@@ -328,7 +328,7 @@ export default function Exams() {
               className="w-full px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-bold">
               Make visible &amp; lock ({chosen.size})
             </button>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-surface-faint">
               Nobody sees this exam until you press this. It then appears on those phones within 15 seconds and
               the app opens straight into it — no back, no home — until they submit or the time runs out.
               Unassign from the Results tab to hide it again instantly.</p>
@@ -346,19 +346,19 @@ export default function Exams() {
               <div key={a.id} className="border rounded-xl p-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <b className="text-sm">{name(a.user_id)}</b>
-                  <span className="text-slate-500 text-sm">{examTitle(a.exam_id)}</span>
+                  <span className="text-surface-muted text-sm">{examTitle(a.exam_id)}</span>
                   {badge(a.status)}
                   {a.score != null && <span className="text-sm font-bold text-green-700">{a.score}%</span>}
                   {a.status !== 'completed' &&
                     <button onClick={() => release(a)} className="ml-auto text-xs text-red-500 underline">unassign / hide</button>}
                   {answers.length > 0 &&
                     <button onClick={() => setOpen(open === a.id ? null : a.id)}
-                      className="text-xs text-indigo-600 underline">{open === a.id ? 'hide answers' : 'review answers'}</button>}
+                      className="text-xs text-brand-600 dark:text-brand-300 underline">{open === a.id ? 'hide answers' : 'review answers'}</button>}
                 </div>
                 {open === a.id && (
                   <div className="mt-2 space-y-2">
                     {answers.map((d: any, i: number) => (
-                      <div key={i} className="text-sm bg-slate-50 rounded-lg p-2">
+                      <div key={i} className="text-sm bg-surface-sunken rounded-lg p-2">
                         <b>Q{i + 1}. {d.q}</b>
                         <div>Answer given: <b>{d.given || '—'}</b></div>
                         {d.ok === null
@@ -372,7 +372,7 @@ export default function Exams() {
               </div>
             );
           })}
-          {!asgs.length && <p className="text-sm text-slate-400">Nothing assigned yet.</p>}
+          {!asgs.length && <p className="text-sm text-surface-faint">Nothing assigned yet.</p>}
         </div>
       )}
     </div>

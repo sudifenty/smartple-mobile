@@ -79,11 +79,11 @@ export default function Live() {
       <div className="flex items-center gap-2 mb-1">
         {isActive && <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />}
         <span className="font-black">{names[uid] || uid.slice(0, 8)}</span>
-        <span className={`ml-auto text-xs font-bold ${isActive ? 'text-green-600' : 'text-slate-400'}`}>
+        <span className={`ml-auto text-xs font-bold ${isActive ? 'text-green-600' : 'text-surface-faint'}`}>
           {isActive ? `ACTIVE NOW · ${st.recent} event${st.recent === 1 ? '' : 's'} in 5 min` : st.last ? `last seen ${ago(st.last)}` : 'no activity yet'}
         </span>
       </div>
-      <div className="text-xs text-slate-500">
+      <div className="text-xs text-surface-muted">
         {st.answered > 0
           ? <span>✓ {st.correct}/{st.answered} correct in the last hour</span>
           : <span>no answers in the last hour</span>}
@@ -95,10 +95,10 @@ export default function Live() {
     <div>
       <div className="flex items-center gap-3 mb-3">
         <h2 className="font-black text-lg">Live Activity</h2>
-        <span className={`px-2.5 py-1 rounded-full text-xs font-black ${active.length ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+        <span className={`px-2.5 py-1 rounded-full text-xs font-black ${active.length ? 'bg-green-100 text-green-700' : 'bg-surface-sunken text-surface-muted'}`}>
           {active.length} active now
         </span>
-        <span className="text-xs text-slate-400 ml-auto">realtime on learning_events + 15s refresh</span>
+        <span className="text-xs text-surface-faint ml-auto">realtime on learning_events + 15s refresh</span>
       </div>
 
       {active.length > 0 && (
@@ -123,14 +123,14 @@ export default function Live() {
                 <td className="td">{e.tier ? `T${e.tier}` : '-'}</td>
                 <td className="td">
                   {e.skipped ? <span className="text-amber-600 font-bold">skipped</span>
-                    : e.correct === null ? <span className="text-slate-400">—</span>
+                    : e.correct === null ? <span className="text-surface-faint">—</span>
                     : e.correct ? <span className="text-green-600 font-bold">✓ correct</span>
                     : <span className="text-red-600 font-bold">✗ wrong</span>}
                 </td>
-                <td className="td text-slate-500">{ago(e.at)}</td>
+                <td className="td text-surface-muted">{ago(e.at)}</td>
               </tr>
             ))}
-            {!events.length && <tr><td className="td text-slate-400" colSpan={5}>No events yet — activity appears here the moment students use the app.</td></tr>}
+            {!events.length && <tr><td className="td text-surface-faint" colSpan={5}>No events yet — activity appears here the moment students use the app.</td></tr>}
           </tbody>
         </table>
       </div>
