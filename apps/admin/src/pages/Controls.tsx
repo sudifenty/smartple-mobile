@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
 import { supabase, Profile, Assignment } from '../lib/supabase';
-import revisionBank from '../data/revisionBank.json';
+import topicManifest from '../data/topicManifest.json';
 
-/* The topics and subtopics a teacher can lock a learner into. Sourced from the
-   notes corpus the student app actually ships, not from the `questions` table —
-   that table is empty, which is why this picker used to offer nothing at all. */
+/* The topics and subtopics a teacher can lock a learner into.
+
+   Sourced from the notes corpus the student app ships, via topicManifest.json.
+   NOT from revisionBank.json: that bank only carries topics whose revision
+   questions parse as numbered lists, so a topic written with bullets vanished
+   from the picker (P.6 SST offered 2 of its 5 topics). And not from the
+   `questions` table either — it is empty, which is why the original dropdown
+   never offered anything at all. */
 type BankTopic = {
   level: string; subject_code: string; topic: string;
   topic_id?: string; subtopics?: string[];
 };
-const BANK = ((revisionBank as any).items || []) as BankTopic[];
+const BANK = ((topicManifest as any).items || []) as BankTopic[];
 /* the phone's subject labels are not the bank's subject codes */
 const CODE: Record<string, string> = { Math: 'MATH', SST: 'SST', English: 'ENG', Science: 'SCI' };
 const topicsFor = (cls: string | null, subj: string | null) =>
