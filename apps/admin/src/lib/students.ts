@@ -200,6 +200,12 @@ export async function registerStudent(input: RegisterInput): Promise<RegisterRes
   });
   if (rpcErr) throw new Error(`Login created but the profile was not saved — ${rpcErr.message}`);
 
+  /* admin_register_student writes the subscription dates but not is_paid, and
+     the phone app's gate is `is_paid && paid_until > now`. Without this a
+     student registered with a period had an expiry date and no access at all —
+     they would have opened the app and found everything locked. */
+  await supabase.from('smartple_profiles').update({ is_paid: true }).eq('user_id', user.id);
+
   /* The photo can only be filed once the login exists, because the storage
      path is keyed on the user id. A failure here must not lose the student —
      they are registered either way, and the photo can be added later. */
@@ -235,6 +241,8 @@ export async function renewStudent(userId: string, days: number): Promise<{ end_
     p_days: days
   });
   if (error) throw new Error(error.message);
+  /* same reason as registration: renewing the dates has to reopen access too */
+  await supabase.from('smartple_profiles').update({ is_paid: true }).eq('user_id', userId);
   return { end_date: (data as any)?.end_date || null };
 }
 

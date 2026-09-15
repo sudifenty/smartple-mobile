@@ -27,6 +27,8 @@ const calls: Array<{ fn: string; args: any }> = [];
 function chain(rows: any) {
   const q: any = {
     select: () => q, order: () => q, limit: () => q, eq: () => q,
+    /* renewStudent now writes is_paid as well, so the chain needs update() */
+    update: () => q,
     then: (onF: any, onR: any) => Promise.resolve({ data: rows, error: null }).then(onF, onR)
   };
   return q;

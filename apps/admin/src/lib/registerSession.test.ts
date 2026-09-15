@@ -17,6 +17,7 @@ const STUDENT = { access_token: 'student-access', refresh_token: 'student-refres
 
 let current: { access_token: string; refresh_token: string } | null = null;
 let calls: string[] = [];
+let updates: string[] = [];
 
 vi.mock('./supabase', () => ({
   supabase: {
@@ -46,7 +47,15 @@ vi.mock('./supabase', () => ({
       }
       return { data: { student_id: 'SPL-2026-0001', end_date: null }, error: null };
     },
-    storage: { from: () => ({ upload: async () => ({ error: null }) }) }
+    storage: { from: () => ({ upload: async () => ({ error: null }) }) },
+    from: (table: string) => ({
+      update: (patch: any) => ({
+        eq: async (_col: string, val: string) => {
+          updates.push(`${table} ${JSON.stringify(patch)} where=${val}`);
+          return { error: null };
+        }
+      })
+    })
   }
 }));
 
@@ -59,7 +68,7 @@ const INPUT = {
 } as any;
 
 describe('registering a student must not lose the admin session', () => {
-  beforeEach(() => { current = ADMIN; calls = []; });
+  beforeEach(() => { current = ADMIN; calls = []; updates = []; });
 
   it('signUp really does steal the session — the mock is not vacuous', async () => {
     const { supabase } = await import('./supabase');
@@ -87,5 +96,11 @@ describe('registering a student must not lose the admin session', () => {
   it('leaves the admin signed in, not the student they just created', async () => {
     await registerStudent(INPUT);
     expect(current).toEqual(ADMIN);
+  });
+
+  it('opens access — the phone gate is is_paid && paid_until > now, and the RPC writes no is_paid', async () => {
+    await registerStudent(INPUT);
+    expect(updates.some(u => u.startsWith('smartple_profiles') && u.includes('"is_paid":true')))
+      .toBe(true);
   });
 });
